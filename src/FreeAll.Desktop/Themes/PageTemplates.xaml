@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
+                    xmlns:explorer="clr-namespace:FreeAll.Desktop.ViewModels.Explorer"
+                    xmlns:views="clr-namespace:FreeAll.Desktop.Views">
+
+  <!-- Maps each page view model to its view. The shell's ContentControl picks the template by type. -->
+
+  <DataTemplate DataType="{x:Type vm:PlaceholderPageViewModel}">
+    <views:PlaceholderPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:DrivesViewModel}">
+    <views:DrivesPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+    <views:SettingsPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type explorer:ExplorerPrototypeViewModel}">
+    <views:ExplorerPrototypePage />
+  </DataTemplate>
+
+</ResourceDictionary>

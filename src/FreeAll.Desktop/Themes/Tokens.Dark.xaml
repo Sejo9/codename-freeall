@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Dark theme colour tokens. Keys must match Tokens.Light.xaml exactly. -->
+
+  <SolidColorBrush x:Key="Color.Background" Color="#FF202020" />
+  <SolidColorBrush x:Key="Color.Surface" Color="#FF2B2B2B" />
+  <SolidColorBrush x:Key="Color.SurfaceElevated" Color="#FF323232" />
+  <SolidColorBrush x:Key="Color.SurfaceHover" Color="#FF383838" />
+  <SolidColorBrush x:Key="Color.SurfaceSelected" Color="#FF3D3D3D" />
+  <SolidColorBrush x:Key="Color.Border" Color="#FF3B3B3B" />
+  <SolidColorBrush x:Key="Color.TextPrimary" Color="#FFFFFFFF" />
+  <SolidColorBrush x:Key="Color.TextSecondary" Color="#FFC8C8C8" />
+  <!-- Windows accent colour, lightened variant for contrast on dark surfaces (same source as the Fluent controls). -->
+  <SolidColorBrush x:Key="Color.Accent" Color="{x:Static SystemColors.AccentColorLight2}" />
+  <SolidColorBrush x:Key="Color.OnAccent" Color="#FF000000" />
+  <SolidColorBrush x:Key="Color.Success" Color="#FF6CCB5F" />
+  <SolidColorBrush x:Key="Color.Warning" Color="#FFFCE100" />
+  <SolidColorBrush x:Key="Color.Danger" Color="#FFFF99A4" />
+  <SolidColorBrush x:Key="Color.Info" Color="#FF60CDFF" />
+  <SolidColorBrush x:Key="Color.InfoBackground" Color="#FF27313A" />
+  <SolidColorBrush x:Key="Color.WarningBackground" Color="#FF433519" />
+  <SolidColorBrush x:Key="Color.MeterTrack" Color="#FF454545" />
+  <SolidColorBrush x:Key="Color.Folder" Color="#FFFFC83D" />
+
+</ResourceDictionary>

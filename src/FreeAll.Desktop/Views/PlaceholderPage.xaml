@@ -1,0 +1,34 @@
+<UserControl x:Class="FreeAll.Desktop.Views.PlaceholderPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:PlaceholderPageViewModel}"
+             x:ClassModifier="internal">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <Border MaxWidth="720"
+            Margin="{StaticResource Thickness.Page}"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Card}">
+      <DockPanel>
+        <TextBlock Margin="0,2,16,0"
+                   VerticalAlignment="Top"
+                   DockPanel.Dock="Left"
+                   FontSize="28"
+                   Foreground="{DynamicResource Color.TextSecondary}"
+                   Style="{StaticResource Typography.Icon}"
+                   Text="{Binding Glyph}" />
+        <StackPanel>
+          <TextBlock Style="{StaticResource Typography.Title}" Text="Not available yet" />
+          <TextBlock Margin="0,6,0,0" Style="{StaticResource Typography.Body}" Text="{Binding Description}" />
+          <TextBlock Margin="0,12,0,0"
+                     Style="{StaticResource Typography.Caption}"
+                     Text="This page is part of the planned product and is shown so the navigation is complete. It does not scan, change or delete anything." />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+  </ScrollViewer>
+</UserControl>

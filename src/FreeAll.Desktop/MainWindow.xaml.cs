@@ -1,15 +1,31 @@
 using System.Windows;
+using FreeAll.Desktop.ViewModels;
 
 namespace FreeAll.Desktop;
 
-/// <summary>
-/// Main application shell. Navigation rail, title region, inspector and status bar
-/// follow in Phase 1 (docs/07-ui-ux-design.md §2).
-/// </summary>
-public partial class MainWindow : Window
+/// <summary>Main application shell (docs/07-ui-ux-design.md §2).</summary>
+internal partial class MainWindow : Window
 {
-    public MainWindow()
+    /// <summary>Below this width the navigation rail collapses to icons.</summary>
+    private const double CompactWidthThreshold = 1000;
+
+    private readonly ShellViewModel _shell;
+
+    public MainWindow(ShellViewModel shell)
     {
+        _shell = shell;
+        DataContext = shell;
         InitializeComponent();
+        SizeChanged += OnSizeChanged;
+    }
+
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var wasWide = e.PreviousSize.Width >= CompactWidthThreshold || e.PreviousSize.Width == 0;
+        var isWide = e.NewSize.Width >= CompactWidthThreshold;
+        if (wasWide != isWide)
+        {
+            _shell.IsNavigationExpanded = isWide;
+        }
     }
 }

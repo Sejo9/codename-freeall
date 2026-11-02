@@ -9,7 +9,19 @@
     <AssemblyName>FreeAll</AssemblyName>
     <RootNamespace>FreeAll.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF0001: Application.ThemeMode (Fluent theme) is marked experimental; adopted under TD-011. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FreeAll.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />

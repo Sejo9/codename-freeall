@@ -1,0 +1,175 @@
+<UserControl x:Class="FreeAll.Desktop.Views.ExplorerPrototypePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:explorer="clr-namespace:FreeAll.Desktop.ViewModels.Explorer"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=explorer:ExplorerPrototypeViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0" Margin="0,0,0,12" Style="{StaticResource Banner.Info}">
+      <DockPanel>
+        <TextBlock Margin="0,0,10,0" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Info}" Style="{StaticResource Typography.Icon}" Text="&#xE946;" />
+        <TextBlock Style="{StaticResource Typography.Body}"
+                   Text="This prototype tests large virtualized trees and lists with generated data. Sorting runs off the UI thread. Results are recorded for the control selection decision (BLK-004)." />
+      </DockPanel>
+    </Border>
+
+    <!-- Toolbar -->
+    <DockPanel Grid.Row="1" Margin="0,0,0,12">
+      <Button Margin="8,0,0,0" Command="{Binding ToggleInspectorCommand}" DockPanel.Dock="Right">
+        <Button.Style>
+          <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Content" Value="Hide details" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsInspectorOpen}" Value="False">
+                <Setter Property="Content" Value="Show details" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Button.Style>
+      </Button>
+      <ComboBox Width="140"
+                AutomationProperties.Name="Stress test size"
+                ItemStringFormat="{}{0:N0} files"
+                ItemsSource="{Binding StressSizes}"
+                SelectedItem="{Binding SelectedStressSize}" />
+      <Button Margin="8,0,0,0" Command="{Binding LoadStressTestCommand}" Content="Load stress test" />
+      <TextBlock Margin="16,0,0,0"
+                 VerticalAlignment="Center"
+                 Style="{StaticResource Typography.Caption}"
+                 Text="{Binding MetricsText}"
+                 TextTrimming="CharacterEllipsis"
+                 TextWrapping="NoWrap"
+                 Typography.NumeralAlignment="Tabular" />
+    </DockPanel>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="250" MinWidth="160" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="*" MinWidth="240" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Padding="4" Style="{StaticResource Card}">
+        <TreeView x:Name="FolderTree"
+                  AutomationProperties.Name="Folders"
+                  BorderThickness="0"
+                  Background="Transparent"
+                  ItemsSource="{Binding Roots}"
+                  SelectedItemChanged="OnFolderSelected"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.ScrollUnit="Item"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+          <TreeView.ItemContainerStyle>
+            <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+              <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+              <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+            </Style>
+          </TreeView.ItemContainerStyle>
+          <TreeView.ItemTemplate>
+            <HierarchicalDataTemplate DataType="{x:Type explorer:SyntheticFolderNode}" ItemsSource="{Binding Children}">
+              <StackPanel Orientation="Horizontal" ToolTip="{Binding Summary}">
+                <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.Folder}" Style="{StaticResource Typography.Icon}" Text="&#xE8B7;" />
+                <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Name}" TextWrapping="NoWrap" />
+              </StackPanel>
+            </HierarchicalDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" AutomationProperties.Name="Resize folder pane" />
+
+      <Border Grid.Column="2" Padding="0" Style="{StaticResource Card}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <TextBlock Margin="12,8" Style="{StaticResource Typography.Monospace}" Text="{Binding CurrentLocation}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+          <ProgressBar Grid.Row="0" VerticalAlignment="Bottom" AutomationProperties.Name="Working" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+
+          <DataGrid x:Name="FileGrid"
+                    Grid.Row="1"
+                    AutomationProperties.Name="Files"
+                    AutoGenerateColumns="False"
+                    BorderThickness="0"
+                    CanUserReorderColumns="True"
+                    CanUserResizeColumns="True"
+                    CanUserSortColumns="True"
+                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="True"
+                    GridLinesVisibility="None"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    ItemsSource="{Binding Rows}"
+                    SelectedItem="{Binding SelectedRow}"
+                    SelectionMode="Single"
+                    Sorting="OnSorting"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.ScrollUnit="Item"
+                    VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.Resources>
+              <Style x:Key="RightAligned" TargetType="TextBlock">
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+              </Style>
+            </DataGrid.Resources>
+            <!--
+              Only Name is star-sized. Fixed columns set MinWidth equal to Width; otherwise the DataGrid shrinks
+              them to slivers to satisfy star-column minimums, instead of scrolling horizontally.
+            -->
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="*" MinWidth="220" Binding="{Binding Name}" Header="Name" SortMemberPath="Name" />
+              <DataGridTextColumn Width="170" MinWidth="170" Binding="{Binding TypeName}" Header="Type" SortMemberPath="TypeName" />
+              <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding LogicalSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource RightAligned}" Header="Size" SortMemberPath="LogicalSize" />
+              <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding AllocatedSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource RightAligned}" Header="On disk" SortMemberPath="AllocatedSize" />
+              <DataGridTextColumn Width="150" MinWidth="150" Binding="{Binding Modified, StringFormat=g}" Header="Modified" SortMemberPath="Modified" />
+              <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding Attributes}" Header="Attributes" SortMemberPath="Attributes" />
+              <DataGridTextColumn Width="170" MinWidth="170" Binding="{Binding Category}" Header="Category" SortMemberPath="Category" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </Border>
+
+      <!-- Inspector -->
+      <Border Grid.Column="3"
+              Width="300"
+              Margin="12,0,0,0"
+              Style="{StaticResource Card}"
+              Visibility="{Binding IsInspectorOpen, Converter={StaticResource BoolToVisibility}}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <Grid>
+            <TextBlock Style="{StaticResource Typography.Caption}" Text="Select a file to see its details." Visibility="{Binding SelectedRow, Converter={StaticResource InverseNullToVisibility}}" />
+            <StackPanel DataContext="{Binding SelectedRow}" Visibility="{Binding Converter={StaticResource NullToVisibility}}">
+              <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding Name}" TextWrapping="Wrap" />
+              <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding TypeName}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Full path" />
+              <TextBox AutomationProperties.Name="Full path" Style="{StaticResource SelectableMonospace}" Text="{Binding FullPath, Mode=OneWay}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Size" />
+              <TextBlock Style="{StaticResource Typography.Numeric}" Text="{Binding LogicalSize, Converter={StaticResource ByteSize}}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Size on disk" />
+              <TextBlock Style="{StaticResource Typography.Numeric}" Text="{Binding AllocatedSize, Converter={StaticResource ByteSize}}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Modified" />
+              <TextBlock Style="{StaticResource Typography.Numeric}" Text="{Binding Modified, StringFormat=F}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Attributes" />
+              <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Attributes}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Category" />
+              <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Category}" />
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Scan provenance" />
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Synthetic prototype data" />
+            </StackPanel>
+          </Grid>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

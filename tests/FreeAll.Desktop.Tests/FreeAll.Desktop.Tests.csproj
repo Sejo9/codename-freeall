@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- View-model and presentation-logic tests. Views themselves are verified by screenshots and manual review. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeAll.Desktop/FreeAll.Desktop.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,170 @@
+<UserControl x:Class="FreeAll.Desktop.Views.DrivesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DrivesViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="0" Margin="0,0,0,16" Orientation="Horizontal">
+      <Button Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh drive list">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
+          <TextBlock Text="Refresh" />
+        </StackPanel>
+      </Button>
+      <TextBlock Margin="16,0,0,0"
+                 VerticalAlignment="Center"
+                 Style="{StaticResource Typography.Caption}"
+                 Text="{Binding LastRefreshed, StringFormat='Checked at {0:t}'}"
+                 Visibility="{Binding LastRefreshed, Converter={StaticResource NullToVisibility}}" />
+    </StackPanel>
+
+    <!-- Loading -->
+    <StackPanel Grid.Row="1"
+                MaxWidth="360"
+                HorizontalAlignment="Left"
+                Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Loading}">
+      <TextBlock Style="{StaticResource Typography.Body}" Text="Looking for drives…" />
+      <ProgressBar Margin="0,8,0,0" AutomationProperties.Name="Looking for drives" IsIndeterminate="True" />
+    </StackPanel>
+
+    <!-- Error -->
+    <Border Grid.Row="1"
+            MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <DockPanel>
+        <TextBlock Margin="0,2,12,0"
+                   VerticalAlignment="Top"
+                   DockPanel.Dock="Left"
+                   Foreground="{DynamicResource Color.Warning}"
+                   Style="{StaticResource Typography.Icon}"
+                   Text="&#xE7BA;" />
+        <StackPanel>
+          <TextBlock Style="{StaticResource Typography.Title}" Text="Drives couldn't be listed" />
+          <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" />
+          <Button Margin="0,12,0,0"
+                  HorizontalAlignment="Left"
+                  Command="{Binding RefreshCommand}"
+                  Content="Try again" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Results -->
+    <ScrollViewer Grid.Row="1"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Ready}">
+      <StackPanel>
+        <ItemsControl AutomationProperties.Name="Drives" Focusable="False" ItemsSource="{Binding Drives}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:DriveItemViewModel}">
+              <Border Width="332"
+                      Margin="0,0,16,16"
+                      AutomationProperties.Name="{Binding AutomationName}"
+                      Focusable="True"
+                      Style="{StaticResource Card}">
+                <StackPanel>
+                  <DockPanel>
+                    <TextBlock Margin="0,0,12,0"
+                               DockPanel.Dock="Left"
+                               FontSize="28"
+                               Style="{StaticResource Typography.Icon}"
+                               Text="{Binding Glyph}" />
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding Title}" />
+                      <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding Subtitle}" />
+                    </StackPanel>
+                  </DockPanel>
+
+                  <ProgressBar Margin="0,16,0,8"
+                               AutomationProperties.Name="{Binding UsedText}"
+                               Style="{StaticResource UsageMeter}"
+                               Value="{Binding UsedFraction, Mode=OneTime}"
+                               Visibility="{Binding HasCapacity, Converter={StaticResource BoolToVisibility}}" />
+                  <DockPanel Margin="0,0,0,12">
+                    <TextBlock DockPanel.Dock="Right" Style="{StaticResource Typography.Caption}" Text="{Binding UsedText}" Typography.NumeralAlignment="Tabular" />
+                    <TextBlock Style="{StaticResource Typography.Numeric}" Text="{Binding FreeText}" />
+                  </DockPanel>
+
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Margin="0,0,6,0" FontSize="12" Text="{Binding ScanSelectionGlyph}">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource Typography.Icon}">
+                          <Setter Property="Foreground" Value="{DynamicResource Color.TextSecondary}" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsIncludedByDefault}" Value="True">
+                              <Setter Property="Foreground" Value="{DynamicResource Color.Success}" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding ScanSelectionText}" />
+                  </StackPanel>
+
+                  <Expander Margin="0,12,0,0" Header="Details">
+                    <StackPanel Margin="0,4,0,0">
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="Mount points" />
+                      <TextBox AutomationProperties.Name="Mount points" Style="{StaticResource SelectableMonospace}" Text="{Binding MountPointsText, Mode=OneTime}" />
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="File system" />
+                      <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding FileSystemText}" />
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="Volume ID" />
+                      <TextBox AutomationProperties.Name="Volume ID" Style="{StaticResource SelectableMonospace}" Text="{Binding VolumeIdText, Mode=OneTime}" />
+                    </StackPanel>
+                  </Expander>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Margin="0,8,0,0" Visibility="{Binding NetworkDrives.Count, Converter={StaticResource NullToVisibility}, FallbackValue=Collapsed}">
+          <TextBlock Style="{StaticResource SectionHeader}" Text="Network drives" />
+          <TextBlock Style="{StaticResource Typography.Caption}" Text="Network drives are not scanned by default." />
+          <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding NetworkDrives}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Margin="0,16,0,0" Visibility="{Binding Problems.Count, Converter={StaticResource NullToVisibility}, FallbackValue=Collapsed}">
+          <TextBlock Style="{StaticResource SectionHeader}" Text="Some details couldn't be read" />
+          <ItemsControl ItemsSource="{Binding Problems}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <TextBlock MaxWidth="720"
+                   Margin="0,16,0,0"
+                   HorizontalAlignment="Left"
+                   Style="{StaticResource Typography.Caption}"
+                   Text="Used and free space are reported by Windows for the whole volume. They can differ from the total size of scanned files because of system metadata, reserved storage, snapshots and locations that can't be read." />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

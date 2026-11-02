@@ -1,0 +1,165 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Project-owned component styles layered over the WPF Fluent theme (TD-011). Colours come only from
+    token brushes (DynamicResource) so light, dark and high-contrast switching needs no restyling.
+  -->
+
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="Metrics.xaml" />
+  </ResourceDictionary.MergedDictionaries>
+
+  <Style x:Key="Card" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Color.Surface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Color.Border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Medium}" />
+    <Setter Property="Padding" Value="{StaticResource Thickness.Card}" />
+  </Style>
+
+  <Style x:Key="Banner.Info" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Color.InfoBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Color.Border}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Radius.Small}" />
+    <Setter Property="Padding" Value="12,8" />
+  </Style>
+
+  <Style x:Key="Banner.Warning" TargetType="Border" BasedOn="{StaticResource Banner.Info}">
+    <Setter Property="Background" Value="{DynamicResource Color.WarningBackground}" />
+  </Style>
+
+  <Style x:Key="SectionHeader" TargetType="TextBlock" BasedOn="{StaticResource Typography.Title}">
+    <Setter Property="Margin" Value="0,0,0,8" />
+  </Style>
+
+  <!-- Borderless button for icon-only commands. Callers must set AutomationProperties.Name. -->
+  <Style x:Key="Button.Icon" TargetType="Button">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="36" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource Color.TextPrimary}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource Radius.Small}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Color.SurfaceHover}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Color.SurfaceSelected}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Navigation rail -->
+  <Style x:Key="Nav.List" TargetType="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBox">
+          <ScrollViewer Focusable="False" Padding="{TemplateBinding Padding}">
+            <ItemsPresenter />
+          </ScrollViewer>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="Nav.Item" TargetType="ListBoxItem">
+    <Setter Property="Margin" Value="4,1" />
+    <Setter Property="Foreground" Value="{DynamicResource Color.TextPrimary}" />
+    <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+    <Setter Property="ToolTip" Value="{Binding Title}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="Bd" Background="Transparent" CornerRadius="{StaticResource Radius.Small}">
+            <Grid>
+              <Border x:Name="Indicator"
+                      Width="3"
+                      Height="16"
+                      HorizontalAlignment="Left"
+                      Background="{DynamicResource Color.Accent}"
+                      CornerRadius="1.5"
+                      Visibility="Collapsed" />
+              <ContentPresenter VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Color.SurfaceHover}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Color.SurfaceSelected}" />
+              <Setter TargetName="Indicator" Property="Visibility" Value="Visible" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Color.TextPrimary}" />
+              <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Capacity meter: Value is a 0..1 fraction. Always pair with a text equivalent. -->
+  <Style x:Key="UsageMeter" TargetType="ProgressBar">
+    <Setter Property="Height" Value="6" />
+    <Setter Property="Minimum" Value="0" />
+    <Setter Property="Maximum" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource Color.Accent}" />
+    <Setter Property="Background" Value="{DynamicResource Color.MeterTrack}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ProgressBar">
+          <Grid>
+            <Border Background="{TemplateBinding Background}" CornerRadius="3" />
+            <Border x:Name="PART_Track" />
+            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3" />
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Read-only, selectable text for paths and IDs so users can copy them. -->
+  <Style x:Key="SelectableMonospace" TargetType="TextBox">
+    <Setter Property="IsReadOnly" Value="True" />
+    <Setter Property="IsTabStop" Value="True" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Monospace}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource Color.TextPrimary}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <ScrollViewer x:Name="PART_ContentHost" Focusable="False" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource Typography.Caption}">
+    <Setter Property="Margin" Value="0,8,0,2" />
+  </Style>
+
+</ResourceDictionary>

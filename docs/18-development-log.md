@@ -95,3 +95,76 @@ TD-001 to TD-009 recorded in `16-developer-decisions.md`.
 Phase 1: shell and navigation, MVVM and dependency injection, design
 tokens and light/dark theme (BLK-006 Fluent audit), Windows 11 runtime
 check, SQLite provider validation (BLK-002), logging.
+
+## 2026-11-02 --- Product-owner decisions and Phase 1: UI and data foundation
+
+### Decisions received
+
+BLK-010 to BLK-014 resolved as DEC-022 to DEC-026: removable volumes
+without a Recycle Bin, elevated scanning in v1, a free and redistributable
+product with permissive dependencies only, unsigned builds for now, and
+cancel-only scans. The repository is hosted on GitHub with GitHub
+Actions.
+
+### Completed
+
+-   **Shell:** navigation rail with all 12 sections, collapsible and
+    automatically compact below 1000 px; page title region; status region
+    with scan and database state; placeholder pages that say plainly
+    the feature is not available.
+-   **MVVM and DI:** CommunityToolkit.Mvvm, explicit composition root
+    (TD-010).
+-   **Theming:** Fluent theme with light, dark and Windows-setting modes,
+    live follow of Windows changes, a high-contrast path, the Windows
+    accent colour, and project tokens (TD-011). The theme choice is
+    persisted.
+-   **Startup:** Windows 11 / x64 gate; protected data folder (TD-015);
+    logging (TD-014); database initialized off the UI thread; global
+    exception handling (TD-016).
+-   **Persistence:** SQLite provider selected and validated (TD-013,
+    BLK-002 resolved for x64); first migration (`UserPreferences`).
+-   **Drives page:** real volume discovery through the Win32 volume
+    APIs, GUID identity, mount-point deduplication, network drives shown
+    as excluded, capacity meters with text equivalents.
+-   **Explorer prototype:** 1M-row virtualized grid, lazy tree,
+    off-thread sorting, inspector panel; BLK-004 resolved (TD-017).
+-   **Settings:** theme, privacy statement, data and logs folders,
+    database status, version.
+-   **Visual review:** Debug-only `--capture-screens` mode. All pages
+    were reviewed in light and dark, and the defects found were fixed:
+    accent mismatch, DataGrid column collapse, a stretched placeholder
+    card, low-contrast toggle text, and EFI/recovery partitions shown as
+    "included in default scans" (now on demand, TD-012).
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: 0 warnings, 0
+errors, 148/148 tests passed across six suites:
+
+-   Architecture: 40
+-   Core: 38
+-   Application: 14
+-   Scanner: 5
+-   Integration: 20
+-   Desktop: 31
+
+No vulnerable packages were found. The published Release app starts,
+migrates the database, shows its window and exits with code 0. The data
+folder's access list is protected and limited to the user, SYSTEM and
+Administrators.
+
+### Open
+
+-   BLK-015 (source licence) and BLK-016 (TD-012 confirmation) need
+    product-owner answers.
+-   BLK-006: high-contrast and Narrator validation; decorative-icon
+    automation.
+-   TD-014 gap: redaction of OS exception messages.
+-   CI has not yet run on GitHub.
+
+### Next
+
+Phase 2: persisted volume identity (`Drives` table), streaming scanner
+with bounded channels, scan sessions and completeness accounting,
+reparse-point handling, directory aggregation, exclusions and
+cancellation, and the index-backed explorer.

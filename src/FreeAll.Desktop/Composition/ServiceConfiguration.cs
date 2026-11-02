@@ -1,0 +1,74 @@
+using FreeAll.Application.Abstractions;
+using FreeAll.Core.Diagnostics;
+using FreeAll.Desktop.Services;
+using FreeAll.Desktop.ViewModels;
+using FreeAll.Desktop.ViewModels.Explorer;
+using FreeAll.Infrastructure.Persistence;
+using FreeAll.Infrastructure.Persistence.Migrations;
+using FreeAll.Scanner.Volumes;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace FreeAll.Desktop.Composition;
+
+/// <summary>Composition root (TD-001). The only place that knows every concrete implementation.</summary>
+internal static class ServiceConfiguration
+{
+    public static ServiceProvider Build(IAppPaths paths, ILoggerFactory loggerFactory, System.Windows.Application application)
+    {
+        var services = new ServiceCollection();
+
+        // Infrastructure
+        services.AddSingleton(paths);
+        services.AddSingleton(loggerFactory);
+        services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
+        services.AddSingleton(new PathRedactor());
+        services.AddSingleton(sp => new SqliteAppDatabase(
+            paths.DatabasePath,
+            EmbeddedMigrations.Load(),
+            sp.GetRequiredService<ILogger<SqliteAppDatabase>>()));
+        services.AddSingleton<IAppDatabase>(sp => sp.GetRequiredService<SqliteAppDatabase>());
+        services.AddSingleton<IUserPreferences, SqliteUserPreferences>();
+        services.AddSingleton<IVolumeDiscovery, WindowsVolumeDiscovery>();
+
+        // Desktop services
+        services.AddSingleton(application);
+        services.AddSingleton<ThemeService>();
+        services.AddSingleton<IThemeService>(sp => sp.GetRequiredService<ThemeService>());
+        services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(application.Dispatcher));
+        services.AddSingleton<IUserNotifier, MessageBoxNotifier>();
+        services.AddSingleton<IShellLauncher, ExplorerShellLauncher>();
+
+        // Pages and shell
+        services.AddTransient<DrivesViewModel>();
+        services.AddTransient<SettingsViewModel>();
+        services.AddTransient<ExplorerPrototypeViewModel>();
+        services.AddSingleton(sp => new ShellViewModel(
+            CreateNavigation(sp),
+            sp.GetRequiredService<IAppDatabase>(),
+            sp.GetRequiredService<ILogger<ShellViewModel>>()));
+        services.AddSingleton<MainWindow>();
+
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+    }
+
+    /// <summary>Primary navigation in the order defined by docs/07-ui-ux-design.md §2.</summary>
+    private static List<NavigationItem> CreateNavigation(IServiceProvider sp) =>
+    [
+        Placeholder("overview", "Overview", "", "Storage summary, scan completeness, largest growth areas and recent activity."),
+        new("drives", "Drives", "", sp.GetRequiredService<DrivesViewModel>),
+        new("explorer", "Storage Explorer", "", sp.GetRequiredService<ExplorerPrototypeViewModel>),
+        Placeholder("categories", "File Categories", "", "Storage grouped by file category, such as images, videos, documents and archives."),
+        Placeholder("large", "Large Files", "", "The largest files and folders, with filters by volume, category, age and path."),
+        Placeholder("residue", "Application Residue", "", "Possible leftovers from removed applications, each with its evidence, confidence and risk."),
+        Placeholder("temporary", "Temporary Files", "", "Known temporary and cache locations, with what each one is for and the risk of removing it."),
+        Placeholder("duplicates", "Duplicate Files", "", "Exact duplicate files within each drive, verified byte for byte. Nothing is selected for removal automatically."),
+        Placeholder("windows", "Windows Storage", "", "How Windows itself uses storage, and the cleanup options Windows supports."),
+        Placeholder("history", "Scan History", "", "Past scans, how complete they were, and exports."),
+        Placeholder("activity", "Activity", "", "Cleanup, quarantine and restore operations with per-item results."),
+        new("settings", "Settings", "", sp.GetRequiredService<SettingsViewModel>),
+    ];
+
+    private static NavigationItem Placeholder(string key, string title, string glyph, string description) =>
+        new(key, title, glyph, () => new PlaceholderPageViewModel(title, "Planned feature. Not available in this build.", glyph, description));
+}

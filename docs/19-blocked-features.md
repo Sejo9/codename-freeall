@@ -15,7 +15,7 @@ framework. Implementation is not yet complete.
                                 dependencies may      ARM64 Windows 11            validation
                                 differ                                            
 
-  BLK-002        SQLite         Native assets,        Provider comparison and     OPEN
+  BLK-002        SQLite         Native assets,        Provider comparison and     RESOLVED x64
                  provider       packaging,            x64/ARM64 prototype         
                                 concurrency and                                   
                                 licensing                                         
@@ -24,13 +24,13 @@ framework. Implementation is not yet complete.
                  technology     signing, upgrades and prototype                   
                                 helper packaging                                  
 
-  BLK-004        WPF data       Large file/directory  Virtualized prototype with  OPEN
+  BLK-004        WPF data       Large file/directory  Virtualized prototype with  RESOLVED
                  controls       result performance    representative data         
 
   BLK-005        Chart and      Rendering large       Prototype, accessibility    OPEN
                  treemap        datasets              and performance review      
 
-  BLK-006        WPF Fluent     Theme completeness    .NET 10 theme audit and     OPEN
+  BLK-006        WPF Fluent     Theme completeness    .NET 10 theme audit and     IN PROGRESS
                  theme          and stability         fallback styles             
 
   BLK-007        Windows        Must use supported    API-by-category security    OPEN
@@ -44,10 +44,80 @@ framework. Implementation is not yet complete.
                  targets        hardware              proposed SLOs               
   ----------------------------------------------------------------------------------------------
 
+## Validation evidence (Phase 1, 2026-11-02)
+
+### BLK-002 --- SQLite provider: RESOLVED for x64 (TD-013)
+
+-   `Microsoft.Data.Sqlite` 10.0.14 with `SQLitePCLRaw.bundle_e_sqlite3`
+    2.1.13 (MIT / Apache-2.0 / public domain). `e_sqlite3.dll` (1.9 MB)
+    is present in the self-contained win-x64 publish, and the published
+    app opens and migrates the database.
+-   Integration tests cover: migrations on a new database; idempotent
+    re-initialization; WAL mode; downgrade protection; detection of an
+    edited migration; corrupt-file handling; write refusal while
+    unavailable; rollback on a failed write; 50 concurrent serialized
+    writes without loss; online backup including WAL content with a clean
+    `integrity_check`.
+-   ARM64: the bundle contains a `win-arm64` build, but it has not been
+    tested. This is tracked under BLK-001.
+
+### BLK-004 --- WPF data controls: RESOLVED (TD-017)
+
+Built-in `DataGrid` and `TreeView` with recycling virtualization,
+measured on the development machine (Debug build):
+
+  Rows        Generate   Display after load   Sort by name   Sort by size   Redraw   Working set
+  ----------- ---------- -------------------- -------------- -------------- -------- -------------
+  10,000      41 ms      79 ms                8 ms           4 ms           ≤260 ms  ~165 MB
+  100,000     66 ms      72 ms                108 ms         61 ms          ≤118 ms  ~190 MB
+  1,000,000   906 ms     67 ms                1,766 ms       1,136 ms       ≤74 ms   ~360 MB
+
+Display time does not depend on row count, which confirms
+virtualization works. Sorting runs on a background thread, so the UI
+stays responsive even during the 1.8 s sort of 1M rows. The tree handles
+a 5,000-child folder and a 32-level chain with lazy loading. These are
+prototype measurements on one machine, not product performance claims
+(BLK-009).
+
+### BLK-006 --- WPF Fluent theme: IN PROGRESS (TD-011)
+
+Findings so far:
+
+1.  `Application.ThemeMode` works for light and dark, including runtime
+    switching. It is marked experimental (`WPF0001`).
+2.  Fluent control styles use the Windows accent colour. Project tokens
+    now follow it too, so selection, focus and meters match.
+3.  In dark mode the Fluent DataGrid's selected row uses a light accent
+    fill with dark text. It is readable, but the visual weight is high;
+    acceptable for now.
+4.  DataGrid sizing caveat: fixed-width columns shrink to slivers next
+    to star columns unless `MinWidth` is set (fixed in the prototype).
+5.  High contrast switches to the classic theme with system colours.
+    **Not yet validated** with an actual Windows contrast theme or with
+    Narrator.
+6.  WPF has no equivalent of UWP's `AccessibilityView`. Decorative
+    icon glyphs (Segoe Fluent Icons) are exposed to UI Automation as
+    text. Follow-up: a small decorative-icon control with an automation
+    peer that hides it.
+
+Remaining evidence: manual high-contrast and Narrator pass, and a
+review of dialogs, context menus and tooltips as those screens arrive.
+
 ## Product-owner questions (opened 2026-11-02)
 
 BLK-010 to BLK-014 were resolved by the product owner on 2026-11-02 and
 recorded as DEC-022 to DEC-026. The records below are kept for history.
+
+### BLK-016 --- Default scan selection for unmounted fixed volumes
+
+-   **Status:** OPEN (implemented as proposed in TD-012, pending
+    confirmation)
+-   **Affected features:** F-007, F-009; DEC-015
+-   **Question:** Fixed volumes without a drive letter or folder mount
+    point (EFI system and recovery partitions) are shown but are not
+    part of the default scan; the user can choose them explicitly. Is
+    this acceptable?
+-   **Impact:** Default scan scope.
 
 ### BLK-015 --- Source-code publication and licence
 

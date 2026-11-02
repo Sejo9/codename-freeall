@@ -17,14 +17,14 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-004             ARM64 feasibility and     NOT STARTED       Native dependency and
                     validation                                  end-to-end tests
 
-  F-005             WPF modern design system  NOT STARTED       Theme and accessibility
+  F-005             WPF modern design system  IN PROGRESS       Theme and accessibility
                                                                 review
 
   F-006             Dashboard                 NOT STARTED       UI acceptance
 
-  F-007             Drive discovery           NOT STARTED       Volume integration tests
+  F-007             Drive discovery           IN PROGRESS       Volume integration tests
 
-  F-008             Volume identity and mount NOT STARTED       Mount-point tests
+  F-008             Volume identity and mount IN PROGRESS       Mount-point tests
                     alias handling                              
 
   F-009             Streaming filesystem      NOT STARTED       Large tree and memory tests
@@ -41,7 +41,7 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
 
   F-013             Directory aggregation     NOT STARTED       Size/count correctness tests
 
-  F-014             Storage explorer          NOT STARTED       Virtualization tests
+  F-014             Storage explorer          IN PROGRESS       Virtualization tests
 
   F-015             File classification       NOT STARTED       Classification corpus
 
@@ -96,10 +96,20 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-036             Update opt-in and         NOT STARTED       Update security tests
                     signature verification                      
 
-  F-037             Audit and diagnostics     NOT STARTED       Audit completeness tests
+  F-037             Audit and diagnostics     IN PROGRESS       Audit completeness tests
 
-  F-038             Accessibility and high    NOT STARTED       Manual accessibility review
+  F-038             Accessibility and high    IN PROGRESS       Manual accessibility review
                     DPI                                         
+
+  F-039             Persistence foundation    IMPLEMENTED       Migration, recovery and
+                    (SQLite, migrations,                        backup tests
+                    backup)                                     
+
+  F-040             Logging, redaction and    IMPLEMENTED       Logging and redaction tests
+                    error presentation                          
+
+  F-041             Windows 11 / x64 runtime  IMPLEMENTED       Platform gate tests
+                    gate                                        
   -------------------------------------------------------------------------------------------
 
 Update status only with evidence. Add feature-specific acceptance
@@ -131,3 +141,60 @@ Evidence (2026-11-02):
     code 0.
 -   Criterion 5 pending: the GitHub repository is not yet pushed, so
     CI has not run. Builds are unsigned by decision (DEC-025).
+
+### F-005 --- WPF modern design system (IN PROGRESS)
+
+Acceptance criteria: colour tokens in light, dark and high contrast, with
+no hard-coded colours in views; shape, spacing and typography tokens;
+the Windows accent colour as the accent source; light/dark coverage of
+every screen; documented component styles; accessibility review.
+
+Evidence (2026-11-02): token dictionaries and `Metrics.xaml`/`Controls.xaml`
+exist; screenshots of all 12 pages in light and dark were reviewed
+(`FreeAll.exe --capture-screens <folder>`, Debug builds only).
+Outstanding: high-contrast and Narrator validation and the
+decorative-icon automation fix (BLK-006).
+
+### F-007 / F-008 --- Drive discovery, volume identity (IN PROGRESS)
+
+Acceptance criteria: fixed volumes discovered automatically; removable
+volumes on demand; network drives excluded and shown as excluded;
+volumes keyed by volume GUID; one entry per volume whatever its mount
+points; volumes that are not ready handled; drive-letter changes and
+disconnects handled across sessions.
+
+Evidence (2026-11-02): `WindowsVolumeDiscovery` integration tests
+(system volume, unique IDs, unique mount points, network separation,
+cancellation) and `VolumeScanPolicy` unit tests. Outstanding: persisting
+volume identity (`Drives` table, Phase 2), device arrival and removal
+notifications, and confirmation of TD-012 (BLK-016).
+
+### F-014 --- Storage explorer (IN PROGRESS)
+
+Prototype only (synthetic data). Control choice made (TD-017, BLK-004).
+Outstanding: index-backed paging, real metadata, inspector and review
+queue.
+
+### F-039 --- Persistence foundation (IMPLEMENTED)
+
+Acceptance criteria: forward-only checksummed migrations; downgrade and
+tamper detection that fails closed; serialized writes; refusal to write
+while unavailable; online backup; integrity check on start. Evidence:
+`SqliteAppDatabaseTests` (11 tests) and `SqliteUserPreferencesTests` (3).
+Moves to COMPLETED after the security review of persistence and backup
+(`15-ai-agent-rules.md` §7).
+
+### F-040 --- Logging, redaction and error presentation (IMPLEMENTED)
+
+Acceptance criteria: local rolling logs only; paths redacted by default;
+plain-language errors for startup, UI and background failures; a
+protected data folder. Evidence: `FileLoggingTests`, `PathRedactorTests`,
+`DataDirectorySecurityTests`. Outstanding before COMPLETED:
+exception-message redaction (TD-014 known gap).
+
+### F-041 --- Windows 11 / x64 runtime gate (IMPLEMENTED)
+
+Acceptance criteria: on Windows builds before 22000, or in non-x64
+processes, the app shows a plain-language message and exits. Evidence:
+`PlatformRequirementsTests`. Manual check on a Windows 10 machine still
+outstanding.

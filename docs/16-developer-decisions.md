@@ -252,6 +252,101 @@ supported", but the state model in `05-system-architecture.md` §8 and
 cancellation only; a cancelled or interrupted session is persisted as
 `Partial`/`Interrupted` and the user starts a new scan.
 
+### TD-010 --- MVVM and composition (2026-11-02)
+
+CommunityToolkit.Mvvm source generators (`[ObservableProperty]` partial
+properties, `[RelayCommand]`) and Microsoft.Extensions.DependencyInjection
+with an explicit composition root
+(`src/FreeAll.Desktop/Composition/ServiceConfiguration.cs`). The Generic
+Host is not used. View models are `internal` and tested through
+`InternalsVisibleTo`. Views map to view models through typed
+`DataTemplate`s.
+
+### TD-011 --- Theming: WPF Fluent theme plus project tokens (2026-11-02)
+
+Standard controls use the built-in WPF Fluent theme
+(`Application.ThemeMode`). Project-owned surfaces use colour tokens from
+`Themes/Tokens.{Light|Dark|HighContrast}.xaml`, swapped at runtime by
+`ThemeService`. Only `DynamicResource` is used for colours. The accent
+token follows the Windows accent colour, as the Fluent controls do. A
+Windows contrast theme always wins and uses the classic theme
+(`ThemeMode.None`) with system colours. `ThemeMode` is marked
+experimental (`WPF0001`, suppressed in the Desktop project); if the API
+changes, the fallback is the project-owned styles in `Themes/`. Audit
+findings are recorded under BLK-006.
+
+### TD-012 --- Unmounted fixed volumes are on demand (2026-11-02) --- FOR PRODUCT-OWNER REVIEW
+
+Fixed volumes with no drive letter or folder mount point (typically EFI
+system and recovery partitions) are listed on the Drives page but are
+not selected for the default scan. The user can still choose them, as
+with removable volumes. Reason: they are not reachable through ordinary
+paths, normally need elevation, and contain only OS-managed data, so
+including them would make every default scan partial. This refines
+DEC-015 ("default scan all local fixed drives") and is reported to the
+product owner for confirmation.
+
+### TD-013 --- SQLite provider and operation (2026-11-02)
+
+`Microsoft.Data.Sqlite` (with `SQLitePCLRaw.bundle_e_sqlite3`) is
+selected (BLK-002). Operation:
+
+-   WAL journal mode, enabled after a test showed that the online backup
+    API produces an `integrity_check`-clean copy that includes
+    uncheckpointed WAL content.
+-   `synchronous = FULL` and `foreign_keys = ON` on every connection.
+-   Forward-only embedded SQL migrations
+    (`Persistence/Migrations/Scripts/NNNN_name.sql`), each in its own
+    transaction, recorded with a SHA-256 checksum that ignores line
+    endings. Initialization fails closed (`Unavailable`) if a script
+    changed after it was applied, if a migration is missing, or if the
+    database was created by a newer FreeAll (downgrade protection).
+-   `PRAGMA quick_check` runs on every start.
+-   All writes go through one serialized gate (`WriteAsync`). Writes are
+    refused while the database is unavailable. SQLite errors surface as
+    `PersistenceException`.
+-   STRICT tables.
+
+### TD-014 --- Logging (2026-11-02)
+
+Serilog rolling files at `%LocalAppData%\FreeAll\logs\freeall-YYYYMMDD.log`.
+Files roll daily or at 10 MB, and the newest 14 are kept. The default
+level is Information. Paths must pass through `PathRedactor`, which keeps
+only a drive-letter root plus a 12-hex-digit SHA-256 fingerprint, unless
+the user enables full paths for local troubleshooting (not yet exposed in
+the UI). Known gap: exception messages from the OS can contain paths;
+exception-message redaction is a follow-up for Phase 2, when scanning
+starts producing path-bearing errors.
+
+### TD-015 --- Data folder access list (2026-11-02)
+
+`%LocalAppData%\FreeAll` is created, or corrected on start, with a
+protected (non-inherited) access list granting full control to the
+current user, SYSTEM and Administrators only. The database, logs and
+future quarantine metadata inherit it.
+
+### TD-016 --- Unhandled-exception policy (2026-11-02)
+
+UI-thread exceptions are logged, shown to the user in plain language,
+and the app keeps running. Background-task exceptions are logged and
+observed. Process-level exceptions are logged and the logs are flushed.
+This must be revisited when destructive operations arrive (Phase 6). Those
+operations must fail closed and persist their audit state themselves
+rather than relying on this handler.
+
+### TD-017 --- Explorer controls (2026-11-02)
+
+The built-in WPF `DataGrid` and `TreeView` with UI virtualization
+(recycling mode) are selected for the explorer (BLK-004). No third-party
+grid is needed. Rules from the prototype:
+
+-   Sorting runs off the UI thread, and the result replaces the items
+    source; the DataGrid's own sort is disabled.
+-   Fixed-width columns must set `MinWidth` equal to `Width`.
+-   Tree children load lazily on expansion.
+-   The production explorer will page from the index (`11-data-model.md`)
+    instead of holding all rows in memory.
+
 ## Decision change procedure
 
 Any change must include: - Decision ID. - Current decision. - Proposed

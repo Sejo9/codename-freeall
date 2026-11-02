@@ -1,0 +1,98 @@
+<UserControl x:Class="FreeAll.Desktop.Views.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:SettingsViewModel}"
+             x:ClassModifier="internal">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel MaxWidth="880" Margin="{StaticResource Thickness.Page}" HorizontalAlignment="Left">
+
+      <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Appearance" />
+      <Border Margin="{StaticResource Thickness.SectionGap}" Style="{StaticResource Card}">
+        <StackPanel>
+          <DockPanel>
+            <ComboBox x:Name="ThemeChoice"
+                      Width="220"
+                      VerticalAlignment="Center"
+                      AutomationProperties.Name="Theme"
+                      DisplayMemberPath="Label"
+                      DockPanel.Dock="Right"
+                      ItemsSource="{Binding ThemeOptions}"
+                      SelectedItem="{Binding SelectedThemeOption}" />
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Theme" />
+              <TextBlock Style="{StaticResource Typography.Caption}" Text="Windows high-contrast themes always take priority." />
+            </StackPanel>
+          </DockPanel>
+          <TextBlock Margin="0,8,0,0"
+                     Foreground="{DynamicResource Color.Warning}"
+                     Style="{StaticResource Typography.Caption}"
+                     Text="{Binding PreferenceNote}"
+                     Visibility="{Binding PreferenceNote, Converter={StaticResource NullToVisibility}}" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Privacy" />
+      <Border Margin="{StaticResource Thickness.SectionGap}" Style="{StaticResource Card}">
+        <DockPanel>
+          <TextBlock Margin="0,2,12,0"
+                     VerticalAlignment="Top"
+                     DockPanel.Dock="Left"
+                     Style="{StaticResource Typography.Icon}"
+                     Text="&#xE72E;" />
+          <StackPanel>
+            <TextBlock Style="{StaticResource Typography.Body}" Text="Everything stays on this PC" />
+            <TextBlock Margin="0,4,0,0"
+                       Style="{StaticResource Typography.Caption}"
+                       Text="FreeAll analyses storage locally. It does not send telemetry, file names, paths, hashes or any other information over the network." />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Data storage" />
+      <Border Margin="{StaticResource Thickness.SectionGap}" Style="{StaticResource Card}">
+        <StackPanel>
+          <DockPanel>
+            <Button VerticalAlignment="Center"
+                    Command="{Binding OpenDataFolderCommand}"
+                    Content="Open folder"
+                    DockPanel.Dock="Right"
+                    AutomationProperties.Name="Open data folder" />
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Data folder" />
+              <TextBox Margin="0,2,0,0" AutomationProperties.Name="Data folder path" Style="{StaticResource SelectableMonospace}" Text="{Binding DataDirectory, Mode=OneTime}" />
+            </StackPanel>
+          </DockPanel>
+          <Separator Margin="0,12" />
+          <DockPanel>
+            <Button VerticalAlignment="Center"
+                    Command="{Binding OpenLogsFolderCommand}"
+                    Content="Open folder"
+                    DockPanel.Dock="Right"
+                    AutomationProperties.Name="Open logs folder" />
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Logs" />
+              <TextBox Margin="0,2,0,0" AutomationProperties.Name="Logs folder path" Style="{StaticResource SelectableMonospace}" Text="{Binding LogsDirectory, Mode=OneTime}" />
+              <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Caption}" Text="Logs stay on this PC. File and folder names are replaced with short fingerprints." />
+            </StackPanel>
+          </DockPanel>
+          <Separator Margin="0,12" />
+          <TextBlock Style="{StaticResource Typography.Body}" Text="Database" />
+          <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding DatabaseStatusText}" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="About" />
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding DataContext.VersionText, RelativeSource={RelativeSource AncestorType=Window}}" />
+          <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding RuntimeText}" />
+          <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Caption}" Text="Free to use and share. This build is not code-signed." />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
