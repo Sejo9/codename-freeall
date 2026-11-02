@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- SQLite persistence, Windows API adapters, logging, configuration and update infrastructure. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />
+    <ProjectReference Include="../FreeAll.Application/FreeAll.Application.csproj" />
+  </ItemGroup>
+
+</Project>

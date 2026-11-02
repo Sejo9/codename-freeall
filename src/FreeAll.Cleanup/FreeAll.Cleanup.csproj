@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Review queue, Recycle Bin, quarantine, restore and audit. Security-sensitive: see docs/10-cleanup-quarantine.md. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />
+    <ProjectReference Include="../FreeAll.Application/FreeAll.Application.csproj" />
+  </ItemGroup>
+
+</Project>

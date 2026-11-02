@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FreeAll.Application/FreeAll.Application.csproj" />
+    <Project Path="src/FreeAll.Cleanup/FreeAll.Cleanup.csproj" />
+    <Project Path="src/FreeAll.Core/FreeAll.Core.csproj" />
+    <Project Path="src/FreeAll.Desktop/FreeAll.Desktop.csproj" />
+    <Project Path="src/FreeAll.Duplicates/FreeAll.Duplicates.csproj" />
+    <Project Path="src/FreeAll.Helper/FreeAll.Helper.csproj" />
+    <Project Path="src/FreeAll.Infrastructure/FreeAll.Infrastructure.csproj" />
+    <Project Path="src/FreeAll.Residue/FreeAll.Residue.csproj" />
+    <Project Path="src/FreeAll.Scanner/FreeAll.Scanner.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FreeAll.Architecture.Tests/FreeAll.Architecture.Tests.csproj" />
+  </Folder>
+</Solution>

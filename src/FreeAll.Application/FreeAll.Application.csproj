@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Use cases, orchestration, DTOs and the abstractions that feature and infrastructure projects implement. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />
+  </ItemGroup>
+
+</Project>

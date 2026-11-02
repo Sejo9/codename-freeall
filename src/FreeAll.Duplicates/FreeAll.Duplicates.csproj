@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Per-volume candidate grouping, streaming hashing, byte verification and hard-link awareness. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />
+    <ProjectReference Include="../FreeAll.Application/FreeAll.Application.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Central package versions. Every package added here must have an entry in
+    docs/23-dependency-register.md before it is used (docs/06-technical-design.md §8).
+  -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Test">
+    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+  </ItemGroup>
+
+</Project>

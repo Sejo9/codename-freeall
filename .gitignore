@@ -1,0 +1,40 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+
+# IDE
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.user
+*.suo
+*.rsuser
+.idea/
+
+# Test results
+TestResults/
+*.trx
+coverage*.xml
+*.coverage
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/packages/
+
+# Local databases and secrets (never commit signing material)
+*.db
+*.db-wal
+*.db-shm
+*.pfx
+*.snk
+*.p12
+
+# OS
+Thumbs.db
+Desktop.ini

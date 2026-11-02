@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0-windows7.0": {
+      "freeall.application": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      },
+      "freeall.cleanup": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      },
+      "freeall.core": {
+        "type": "Project"
+      },
+      "freeall.duplicates": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      },
+      "freeall.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      },
+      "freeall.residue": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      },
+      "freeall.scanner": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      }
+    },
+    "net10.0-windows7.0/win-x64": {}
+  }
+}

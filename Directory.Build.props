@@ -1,0 +1,37 @@
+<Project>
+
+  <!-- Shared build settings for every FreeAll project. See docs/06-technical-design.md. -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- x64 is the primary target (DEC-004); ARM64 is conditional (DEC-005); no x86 (DEC-006). -->
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Declared for every project so restore and lock files are identical for build and win-x64 publish. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Missing XML docs are not a build break; public API docs are reviewed instead. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Pinned dependencies (docs/08-security-privacy.md §9). CI restores in locked mode. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+
+    <Company>FreeAll</Company>
+    <Product>FreeAll</Product>
+    <Version>0.0.1</Version>
+  </PropertyGroup>
+
+</Project>
