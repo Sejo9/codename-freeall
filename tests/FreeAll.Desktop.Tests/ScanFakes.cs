@@ -144,6 +144,15 @@ internal sealed class FakeScanIndex : IScanIndex
         return Result<IReadOnlyList<IndexEntry>>(chain);
     }
 
+    public Task<IndexEntry?> GetFolderByPathAsync(long sessionId, string relativePath, CancellationToken cancellationToken) =>
+        Result(Folders.FirstOrDefault(f => string.Equals(f.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase)));
+
+    public Task<UnchangedChildren> GetUnchangedChildrenAsync(long sessionId, int parentKey, DateTime cutoffUtc, CancellationToken cancellationToken)
+    {
+        var old = Children(parentKey).Where(c => (c.IsFolder ? c.NewestFileUtc ?? c.ModifiedUtc : c.ModifiedUtc) < cutoffUtc).ToList();
+        return Result(new UnchangedChildren(old.Sum(c => c.AllocatedSize), old.Count));
+    }
+
     public Task<IReadOnlyList<IndexEntry>> GetSubfoldersAsync(long sessionId, int parentKey, CancellationToken cancellationToken) =>
         Result<IReadOnlyList<IndexEntry>>(Children(parentKey).Where(c => c.IsFolder).OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList());
 
@@ -332,6 +341,50 @@ internal sealed class FakeNavigator : INavigator
     }
 
     public void ShowReviewQueue() => Visited.Add("review");
+}
+
+internal sealed class FakeSystemDrive(ScanSessionSummary? session, string? profile) : ISystemDrive
+{
+    public Task<SystemDriveScan> FindAsync(CancellationToken cancellationToken) => Task.FromResult(new SystemDriveScan(session, profile));
+}
+
+internal sealed class FakeInventory : IApplicationInventory
+{
+    public List<InstalledApplication> Installed { get; } = [];
+
+    public Task<(IReadOnlyList<InstalledApplication> Applications, IReadOnlyList<string> Problems)> ReadAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<(IReadOnlyList<InstalledApplication>, IReadOnlyList<string>)>((Installed.ToList(), []));
+}
+
+internal sealed class FakeApplicationStore : IApplicationStore
+{
+    public Task<IReadOnlyList<KnownApplication>> RecordAsync(IReadOnlyList<InstalledApplication> installed, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<KnownApplication>>(installed.Select(a => new KnownApplication(a, DateTime.UtcNow, DateTime.UtcNow, true)).ToList());
+
+    public Task<IReadOnlyList<KnownApplication>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<KnownApplication>>([]);
+}
+
+internal sealed class FakeDecisionStore : IDecisionStore
+{
+    private long _nextId;
+
+    public List<UserDecision> Items { get; } = [];
+
+    public Task<IReadOnlyList<UserDecision>> GetAllAsync(DecisionFeature feature, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<UserDecision>>(Items.Where(d => d.Feature == feature).ToList());
+
+    public Task SetAsync(UserDecision decision, CancellationToken cancellationToken)
+    {
+        Items.RemoveAll(d => d.Feature == decision.Feature && d.Scope == decision.Scope && string.Equals(d.Target, decision.Target, StringComparison.OrdinalIgnoreCase));
+        Items.Add(decision with { Id = ++_nextId });
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveAsync(long id, CancellationToken cancellationToken)
+    {
+        Items.RemoveAll(d => d.Id == id);
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakeVolumeMonitor : IVolumeChangeMonitor

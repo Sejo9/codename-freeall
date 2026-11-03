@@ -60,12 +60,12 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-021             Storage treemap           IMPLEMENTED       Large-data visualization
                                                                 tests
 
-  F-022             Application inventory     NOT STARTED       Inventory tests
+  F-022             Application inventory     IMPLEMENTED       Inventory tests
 
-  F-023             Residue                   NOT STARTED       False-positive review
+  F-023             Residue                   IMPLEMENTED       False-positive review
                     evidence/confidence                         
 
-  F-024             Temporary/cache rules     NOT STARTED       Rule and safety review
+  F-024             Temporary/cache rules     IMPLEMENTED       Rule and safety review
 
   F-025             Duplicate candidate       NOT STARTED       Same-volume scope tests
                     grouping                                    
@@ -342,6 +342,46 @@ script; readable PDF with provenance. Evidence: `ReportExporterTests`
 `<script>` name and script-blocking policy, row limit, PDF read back with
 page break and accented text), `LargeFilesFilterTests` (export writes a
 complete file and no partial file remains). TD-028.
+
+### F-022 --- Application inventory (IMPLEMENTED)
+
+Acceptance criteria: installed Win32 applications (machine 64/32-bit and
+per-user) and the user's Store packages, read without running anything;
+history kept so removed applications are recognized. Evidence:
+`RegistryInventoryTests` (family names, icon-derived folders, live read
+of this PC), `ResidueAnalysisTests.Inventory_history…`; the Application
+Residue page lists installed and formerly installed applications. On
+the development PC: 347 applications (186 desktop applications and 161
+Store package families) read with no problems. TD-033.
+
+### F-023 --- Residue evidence and confidence (IMPLEMENTED)
+
+Acceptance criteria: every candidate shows the evidence for and against
+it, a confidence and a separate risk in words; shared and Windows
+folders are never suggested; documents raise risk; nothing is removed or
+preselected; keep, ignore, in-use (ownership) and review decisions at
+folder and application level. Evidence: `ApplicationMatcherTests`,
+`ResidueAnalysisTests` (every confidence and risk rule, skips, decision
+precedence), `ResidueViewModelTests`,
+`ReadOnlyAnalysisTests` (no file, registry or process calls in the
+Residue project), and the false-positive review on the development PC
+(`18-development-log.md`): rules version 1 listed 76 folders, at least
+40 of them wrong; version 2 lists 33, of which about 15 are still
+probably in use (all Low confidence except two folders under 1 KB).
+Before COMPLETED: the product owner's sign-off on that review and a
+review on at least one other PC (BLK-018), and Narrator review
+(BLK-006). TD-034.
+
+### F-024 --- Temporary and cache rules (IMPLEMENTED)
+
+Acceptance criteria: documented rules with purpose, consequence, risk and
+age evidence; caches only where ownership is reliable; Windows-managed
+locations reported, not offered; per-rule keep. Evidence:
+`ResidueAnalysisTests.Temporary_rules…`, `TemporaryFilesViewModelTests`,
+the review of matches on the development PC (`18-development-log.md`;
+20 locations, 20.0 GB, analysed in 0.1 s).
+Before COMPLETED: Windows cleanup APIs for managed locations (BLK-007,
+Phase 7). TD-035.
 
 ### F-039 --- Persistence foundation (IMPLEMENTED)
 

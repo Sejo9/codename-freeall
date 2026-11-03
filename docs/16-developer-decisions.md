@@ -698,6 +698,144 @@ are coalesced over one second, then the Drives page refreshes if it has
 been opened. Scans are unaffected: they address volumes by GUID path, and
 a volume that disappears ends its session as partial (TD-018).
 
+### TD-033 --- Application inventory (2026-11-03)
+
+-   Win32 applications come from the uninstall registry: 64-bit and
+    32-bit views of HKLM, and HKCU. Entries without a display name, and
+    updates or patches (`ParentKeyName`, release type), are left out.
+    The install folder is `InstallLocation`, or the folder of a plain
+    `DisplayIcon` path outside Windows; the uninstall command is never
+    read or run.
+-   Store packages come from the current user's AppModel repository in
+    the registry (`HKCU\Software\Classes\Local Settings\…\Repository\Packages`),
+    one entry per package family. This needs no WinRT projection. Display
+    names that are resource references fall back to the package name.
+-   Each inventory is recorded in `Applications` (schema version 4).
+    Applications missing from a later inventory are kept as "not
+    installed since …", which gives the strongest residue evidence.
+    Measured on the development PC: 224 uninstall entries and 314 Store
+    packages.
+
+### TD-034 --- Residue discovery, evidence, confidence and risk (2026-11-03)
+
+-   **Source:** the stored scan of the Windows drive and the inventory
+    only; nothing on disk is opened. A guard test checks that the Residue
+    project contains no file, registry-write or process calls.
+-   **Where:** one level into the current user's AppData\Local, Roaming,
+    LocalLow and Local\Programs, Local\Packages (Store app data),
+    ProgramData, Program Files and Program Files (x86). Under a vendor
+    folder whose publisher still has installed applications, one level
+    further (product folders). Other users' profiles can't be read and
+    are not examined.
+-   **Left out on purpose:** Windows and shared folders (Microsoft,
+    Packages, Programs, Temp, Package Cache, Common Files, WindowsApps
+    and others listed in `ResidueAnalyzer`), Program Files folders whose
+    names start with "Microsoft" or "Windows", names too generic to
+    attribute (Data, Logs, Cache, …), locations covered by Temporary
+    Files, links and excluded folders, and, under Packages, every folder
+    that isn't named like a package family or full name. The
+    false-positive review found that 10 of 12 "unregistered" folders under
+    Packages on the development PC were sandbox profiles created by
+    desktop programs (Chrome `cr.sb.*`, Adobe `*.protectedmode`,
+    `windows_ie_ac_001`). Also left out: hardware and driver vendors'
+    folders (Realtek, Dell, HP, Intel, NVIDIA and others listed in
+    `ResidueAnalyzer`), because drivers often install without an
+    uninstall entry, and FreeAll's own data folder.
+-   **Attribution order:** an install folder (equal, inside or holding
+    it), then an exact product name, then the publisher (vendor folder:
+    look one level in), then looser product names (prefixes, and every
+    word of the folder name in the application's name). Names are
+    compared without case, spaces and punctuation, and company suffixes
+    are removed from publishers. Matching is deliberately generous: a
+    missed leftover costs space; a false claim could cost data.
+    Added after the false-positive review (rules version 2):
+    -   a folder name of 6 or more characters inside an application's
+        name ("PCHealthCheck" in "Windows PC Health Check");
+    -   the initials of a name of 3 to 6 words, without "for", "of",
+        "the" … ("WSL" for "Windows Subsystem for Linux");
+    -   reverse domain names ("com.adobe.dunamis"): the last part as a
+        product, the part after the domain as a vendor;
+    -   "<tool>-nodejs" folders (the env-paths convention) belong to
+        Node.js;
+    -   **programs on the PATH count as installed.** Package managers
+        and developer tools (Chocolatey, npm, JetBrains Toolbox, Flutter)
+        run without an uninstall entry. A PATH folder inside an examined
+        location makes the folder one level below it an install folder
+        (`C:\ProgramData\chocolatey\bin` → `C:\ProgramData\chocolatey`);
+        elsewhere its name is used. The Windows folder is ignored. The
+        PATH is read by the desktop app and passed in; the analysis
+        itself still reads nothing.
+-   **Confidence:**
+    -   **High:** the package isn't installed for this user, or FreeAll saw
+        a matching application installed before and it isn't now.
+    -   **Medium:** data of an older version of an installed package, or
+        no installed match and nothing inside changed for 180 days.
+    -   **Low:** no installed match and a change within 180 days, or
+        the vendor is still installed but the product isn't.
+    -   **In use, not suggested:** when the only evidence is "no
+        installed match" or "vendor installed, product not" and
+        something inside changed within 30 days. The review showed these
+        were almost always in use (developer tools, apps under
+        development, portable programs). They are counted and mentioned
+        in the notes, not listed.
+    -   **Caps:** changed within 30 days caps confidence at Low; in a
+        programs folder it is capped at Low (Medium for a former
+        application), because programs can run unregistered.
+    -   **Unknown:** an unreadable or incomplete folder.
+-   **Risk** (separate from confidence):
+    -   **High:** programs folders, or any documents, pictures, music or
+        videos inside (recorded per folder since scanner version 3).
+    -   **Medium:** AppData Local and Roaming, ProgramData and package
+        data. A change within 30 days raises risk to at least Medium.
+    -   **Low:** LocalLow.
+    -   **Unknown:** when the folder couldn't be read completely.
+    -   Unknown is never shown or treated as low.
+-   **Decisions** (`UserDecisions`): keep, ignore and "in use by …"
+    for a folder; keep or ignore for every folder attributed to the same
+    former application, package family or name group. A folder decision
+    wins over a group decision. Decided folders are hidden unless the
+    user asks to see them. "Add to review queue" is the only route
+    towards removal, and nothing is preselected. Rules are versioned
+    (`ResidueAnalyzer.RulesVersion` = 2).
+-   **False-positive review (development PC, 2026-11-03):** rules
+    version 1 listed 76 folders; at least 40 were wrong (owner installed
+    or in use). Version 2 lists 33; the review of what remains is in
+    `18-development-log.md`.
+
+### TD-035 --- Temporary and cache rules (2026-11-03)
+
+-   Twelve documented locations (`TemporaryRules`, version 1):
+    -   user and Windows temp;
+    -   Chrome, Edge and Firefox caches;
+    -   Visual Studio Code, Discord and Slack caches;
+    -   graphics shader caches;
+    -   error reports and crash dumps;
+    -   npm, pip, NuGet, Yarn and Gradle caches;
+    -   thumbnail caches;
+    -   Windows Update downloads;
+    -   the Recycle Bin.
+-   Each rule has a purpose, a consequence, a risk and an optional age.
+    Browser and app caches are matched only on product-specific paths, so
+    ownership is reliable (docs/03 §H).
+-   The age estimate counts the items directly inside a matched folder
+    whose newest file is older than the rule's age (subfolders use their
+    recursive newest file time), in one query per folder. It is shown as a
+    hint ("unchanged"), not as proof the data is unused.
+-   Windows-managed locations (Windows temp, thumbnails, Windows Update,
+    Recycle Bin) are reported with a pointer to Windows' own tools and
+    can't be added to the review queue (PR-011, BLK-007).
+-   A rule can be kept (never counted or suggested).
+
+### TD-036 --- Per-folder age and content evidence (2026-11-03)
+
+Scanner version 3 records, for each folder, the newest last-write time
+of the files directly inside and the allocated size of those that are
+documents, spreadsheets, presentations, pictures, music or videos. Both
+are computed while listing (no extra file access) and rolled up in
+memory at completion (`TotalNewestFileTicks`, `TotalUserContentBytes`,
+schema version 4). Updates from scans of earlier versions fall back to
+a full scan once, because the scanner version changed.
+
 ## Decision change procedure
 
 Any change must include: - Decision ID. - Current decision. - Proposed

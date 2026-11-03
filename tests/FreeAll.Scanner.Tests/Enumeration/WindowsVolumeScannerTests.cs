@@ -95,6 +95,27 @@ public sealed class WindowsVolumeScannerTests
     }
 
     [Fact]
+    public async Task Folders_record_their_newest_file_and_their_documents_and_media()
+    {
+        using var tree = new ScanTree();
+        var old = tree.File("photos/old.jpg", 3000);
+        var recent = tree.File("photos/notes.txt", 10);
+        tree.File("photos/tool.dll", 5000);
+        File.SetLastWriteTimeUtc(old, new DateTime(2020, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        File.SetLastWriteTimeUtc(recent, new DateTime(2025, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        File.SetLastWriteTimeUtc(PathOfDll(tree), new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var scan = await ScanRunner.ScanAsync(tree.Root, cancellationToken: Token);
+
+        var photos = scan.Folder("photos");
+        Assert.Equal(new DateTime(2025, 5, 1, 0, 0, 0, DateTimeKind.Utc), photos.NewestFileUtc);
+        Assert.Equal(scan.File("photos/old.jpg").AllocatedSize + scan.File("photos/notes.txt").AllocatedSize, photos.UserContentBytes); // .jpg and .txt, not .dll
+        Assert.Null(scan.Folder(string.Empty).NewestFileUtc); // no files directly in the root
+
+        static string PathOfDll(ScanTree tree) => tree.PathOf("photos/tool.dll");
+    }
+
+    [Fact]
     public async Task Unicode_and_unusual_names_are_preserved_exactly()
     {
         using var tree = new ScanTree();

@@ -622,6 +622,7 @@ internal sealed class VolumeScan : IDisposable
     private void AddFile(PendingDirectory directory, ReadOnlySpan<char> name, in EntryInfo entry, StorageLocation location, WorkerState worker, ref DirectoryTotals totals)
     {
         var extension = worker.Extensions.Get(name);
+        var classification = FileClassifier.Classify(extension, location);
         worker.Batch.Files.Add(new ScannedFile(
             directory.Key,
             name.ToString(),
@@ -634,11 +635,20 @@ internal sealed class VolumeScan : IDisposable
             entry.Attributes,
             entry.ReparseTag,
             entry.FileId,
-            FileClassifier.Classify(extension, location)));
+            classification));
 
         totals.FileCount++;
         totals.LogicalBytes += entry.LogicalSize;
         totals.AllocatedBytes += entry.AllocatedSize;
+        if (entry.ModifiedUtc is { } modified && (totals.NewestFileUtc is null || modified > totals.NewestFileUtc))
+        {
+            totals.NewestFileUtc = modified;
+        }
+
+        if (classification.Category.IsUserContent())
+        {
+            totals.UserContentBytes += entry.AllocatedSize;
+        }
 
         // A file link is recorded but its target is not inventoried through it.
         if (entry.ReparseTag != 0 && ReparsePoints.IsNameSurrogate(entry.ReparseTag))
@@ -808,7 +818,9 @@ internal sealed class VolumeScan : IDisposable
         directory.ModifiedUtc,
         totals.FileCount,
         totals.LogicalBytes,
-        totals.AllocatedBytes);
+        totals.AllocatedBytes,
+        totals.NewestFileUtc,
+        totals.UserContentBytes);
 
     private static SafeFileHandle OpenDirectory(string nativePath) => FileSystemNative.CreateFile(
         nativePath,
@@ -838,6 +850,8 @@ internal sealed class VolumeScan : IDisposable
         public int FileCount;
         public long LogicalBytes;
         public long AllocatedBytes;
+        public DateTime? NewestFileUtc;
+        public long UserContentBytes;
     }
 
     /// <summary>A baseline folder's known subfolders while it is listed again. Used by one worker only.</summary>

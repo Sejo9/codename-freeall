@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
                     xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             xmlns:residue="clr-namespace:FreeAll.Desktop.ViewModels.Residue"
                     xmlns:views="clr-namespace:FreeAll.Desktop.Views">
 
   <!-- Maps each page view model to its view. The shell's ContentControl picks the template by type. -->
@@ -40,6 +41,14 @@
 
   <DataTemplate DataType="{x:Type index:ReviewQueueViewModel}">
     <views:ReviewQueuePage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type residue:ResidueViewModel}">
+    <views:ResiduePage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type residue:TemporaryFilesViewModel}">
+    <views:TemporaryFilesPage />
   </DataTemplate>
 
 </ResourceDictionary>

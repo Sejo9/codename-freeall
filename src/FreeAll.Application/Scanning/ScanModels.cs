@@ -160,6 +160,8 @@ public enum IndexEntryKind
 /// <param name="FolderState">Scan state for folders.</param>
 /// <param name="IncompleteCount">For folders: this folder and descendants whose contents are missing.</param>
 /// <param name="LinkCount">For files: names this file has within the scan (more than 1 for hard links).</param>
+/// <param name="NewestFileUtc">For folders: the newest last-write time of any file inside (recursive), when known; for files, their own.</param>
+/// <param name="UserContentBytes">For folders: size on disk of the documents, pictures, music and videos inside (recursive).</param>
 public sealed record IndexEntry(
     IndexEntryKind Kind,
     long SessionId,
@@ -181,7 +183,9 @@ public sealed record IndexEntry(
     FileClassification? Classification,
     DirectoryScanState? FolderState,
     long IncompleteCount,
-    int LinkCount = 1)
+    int LinkCount = 1,
+    DateTime? NewestFileUtc = null,
+    long UserContentBytes = 0)
 {
     public bool IsFolder => Kind == IndexEntryKind.Folder;
 
@@ -191,6 +195,11 @@ public sealed record IndexEntry(
     /// <summary>True when sizes for this folder are a lower bound because some contents could not be read.</summary>
     public bool IsIncomplete => IncompleteCount > 0;
 }
+
+/// <summary>Direct children of a folder that haven't changed since a cutoff.</summary>
+/// <param name="AllocatedBytes">Their space on disk.</param>
+/// <param name="Items">How many there are.</param>
+public sealed record UnchangedChildren(long AllocatedBytes, long Items);
 
 public sealed record IndexPage(IReadOnlyList<IndexEntry> Items, int Offset, int TotalCount)
 {

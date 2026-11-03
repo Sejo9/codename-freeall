@@ -20,6 +20,8 @@ namespace FreeAll.Core.Scanning;
 /// <param name="FileCount">Files listed directly in this directory.</param>
 /// <param name="LogicalBytes">Sum of the logical sizes of those files.</param>
 /// <param name="AllocatedBytes">Sum of their allocated sizes as reported by the file system.</param>
+/// <param name="NewestFileUtc">Latest last-write time of the files directly inside, when any is recorded.</param>
+/// <param name="UserContentBytes">Allocated size of the files directly inside that are documents, pictures, music or videos.</param>
 public sealed record ScannedDirectory(
     int Key,
     int? ParentKey,
@@ -34,7 +36,9 @@ public sealed record ScannedDirectory(
     DateTime? ModifiedUtc,
     int FileCount,
     long LogicalBytes,
-    long AllocatedBytes);
+    long AllocatedBytes,
+    DateTime? NewestFileUtc = null,
+    long UserContentBytes = 0);
 
 /// <summary>One file found by a scan. Reparse-point files are recorded but never followed.</summary>
 /// <param name="DirectoryKey">Key of the containing directory.</param>

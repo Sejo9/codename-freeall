@@ -420,3 +420,151 @@ no longer counted twice.
 Phase 4: application residue and temporary data (installed-app
 inventory, registry and MSIX inventory, known paths, evidence and
 confidence, temporary and cache rules, keep/ignore/review workflows).
+
+## 2026-11-03 --- Phase 4: application residue and temporary data
+
+### Completed
+
+-   **Application inventory (F-022, TD-033):** uninstall registry (64-
+    and 32-bit machine views, current user) and the current user's Store
+    packages from the AppModel repository. Nothing is run. History is
+    kept in `Applications`, so an application seen before and missing
+    now gives the strongest evidence.
+-   **Residue discovery (F-023, TD-034):** AppData Local, Roaming,
+    LocalLow, Local\Programs, Local\Packages, ProgramData and both
+    Program Files folders; vendor folders one level deeper. Evidence for
+    and against each folder, a confidence, and a separate risk. Package
+    data is matched by package family and version.
+-   **Temporary and cache rules (F-024, TD-035):** 12 documented rules
+    with purpose, consequence, risk and age; Windows-managed locations
+    are reported but can't be added to the review queue.
+-   **Decisions:** keep, ignore and "in use by …" per folder; keep or
+    ignore per application group; keep per temporary rule
+    (`UserDecisions`). "Add to review queue" is the only route towards
+    removal; nothing is preselected or removed.
+-   **Pages:** Application Residue (warning banner, evidence inspector,
+    confidence filter, installed-applications list, export) and
+    Temporary Files (rules, details, matched folders, export).
+-   **Scanner version 3 and schema version 4 (TD-036):** each folder
+    records the newest file inside and the space taken by documents and
+    media, rolled up at completion; `Applications` and `UserDecisions`
+    tables (`0004_residue_temporary.sql`).
+-   **Read-only guard:** `ReadOnlyAnalysisTests` fails if the Residue
+    project contains file, registry-write or process calls.
+
+### False-positive review (exit criterion)
+
+The analysis was run against a full scan of C: on the development PC
+(1,005,737 files) and every candidate was checked by hand against the
+inventory, the PATH and the disk.
+
+**Rules version 1: 76 candidates; at least 40 wrong.** The causes:
+
+  Cause                                        Examples                                 Fix (version 2)
+  -------------------------------------------- ---------------------------------------- ------------------------------
+  Tool runs from the PATH, not registered      Roaming\npm, ProgramData\chocolatey,     PATH programs count as
+                                               ChocolateyHttpCache, JetBrains           installed
+  Recent activity, no evidence of removal      com.baruchiel.auren (app under           Changed within 30 days and no
+                                               development), ms-playwright, pnpm-cache, other evidence: in use, not
+                                               tauri, Prisma, JetBrains (Local)         listed (18 folders)
+  Installed, name not recognized               PCHealthCheck ("Windows PC Health        Name inside the product name;
+                                               Check"), WSL ("Windows Subsystem for     initials
+                                               Linux")
+  Node.js tool data                            nextjs-nodejs, prisma-nodejs,            "<tool>-nodejs" belongs to
+                                               claude-cli-nodejs                        Node.js
+  Reverse domain names                         com.adobe.dunamis (Adobe installed)      Product and vendor parts
+  Driver and hardware vendors                  Realtek, Dell, HP, SoundResearch         Left out
+  Shared runtime folders                       CEF, boost_interprocess                  Left out
+  FreeAll's own data                           AppData\Local\FreeAll                    Left out
+
+**Rules version 2: 33 candidates** (13 Medium, 19 Low, 1 Unknown; none
+High, because FreeAll hasn't yet seen anything uninstalled on this PC).
+Of these:
+
+-   **About 17 plausible leftovers**, none confirmed by the owner yet:
+    obsidian and obsidian-updater, MobaXterm, riot-client-ux and two
+    Riot Games folders, two Godot folders, UIU, WireSock Foundation,
+    VMAILMBOXCONVERTER, TempM, Tool Infomation, SolidDocuments,
+    update-informer-rs, and two GIMP package folders of older versions
+    (right by construction: a newer version is installed).
+-   **About 15 probably still in use:** Dart and Flutter data (Pub,
+    .dartServer, .dart-tool, Dart; Flutter is on the PATH under its own
+    name), shimgen (Chocolatey), pnpm, kotlin, turborepo, vitest, astro,
+    Movavi\srecorder24 (Movavi Screen Recorder is installed), and the
+    data of two apps under development (four folders). All are Low
+    confidence except shimgen (0 bytes) and astro (160 bytes).
+-   **1 Unknown:** ProgramData\Whesvc can't be read.
+
+None of the remaining false positives is High confidence, all carry
+their evidence, and every folder with documents or media is High risk.
+Portable programs and apps under development are the limit of this
+method: they leave no trace in the inventory. The owner's sign-off and a
+review on a PC not used for development are recorded as BLK-018.
+
+**Temporary Files:** 20 locations, 20.0 GB. The age estimate is right
+but coarse: `npm-cache` (8.16 GB) shows 0 bytes unchanged because its
+one child folder `_cacache` changes daily; `.gradle\caches` shows
+1.96 GB of 5.17 GB unchanged for 90 days. Your temporary files: 4.55 GB,
+of which 4.24 MB is older than 7 days (today's build output).
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: 0 warnings, 0
+errors; 462 tests, 461 passed, 1 skipped (symbolic links need Developer
+Mode or elevation); no vulnerable packages; self-contained win-x64
+publish succeeded; signing skipped (DEC-025). The published app opened,
+migrated the local database to schema version 4 and closed cleanly.
+New: `ApplicationMatcherTests` (every matching rule, including the
+version 2 additions), `RegistryInventoryTests` (family names, icon
+folders, a live read of this PC), `ResidueAnalysisTests` (a synthetic
+profile in a real SQLite index: every confidence and risk rule, every
+skip found in the review, PATH programs, in-use counting, decision
+precedence, temporary rules, age query, roll-up, stores),
+`ResidueViewModelTests` and `TemporaryFilesViewModelTests`,
+`ReadOnlyAnalysisTests`, and scanner tests for the new folder figures.
+
+**Measurements** (development PC, C:, Debug build):
+
+  Measure                                         Value
+  ----------------------------------------------- ------------------------
+  Full scan (scanner version 3)                   151--160 s
+  Peak working set during the full scan           376--392 MB
+  Application inventory (347 applications)        under 0.1 s
+  Residue analysis (365 folders)                  under 0.1 s
+  Temporary analysis (20 locations)               0.1 s (was 39--45 s)
+
+Peak memory rose from 311 MB in Phase 3, probably because of the new
+per-folder figures; to be watched under BLK-009.
+
+### Defects found and fixed during Phase 4
+
+-   Matching: a vendor's product name matched its vendor folder
+    ("Adobe" as "Adobe Acrobat"), hiding leftover products inside it.
+    Exact names come first, then the vendor, then loose matches.
+-   Temporary analysis took 39--45 s: the age estimate paged through
+    every child, and paths compared without case scanned every folder
+    row of the scan. Now one aggregate query per folder and an indexed
+    walk from the scan root.
+-   The review findings above (rules version 2).
+-   Visual review: clipped columns on both pages, "at least 0 bytes" for
+    unreadable locations, and a checkbox label ("in-use folders") that
+    could be confused with the new automatic in-use count.
+
+### Open
+
+-   BLK-018: owner sign-off on the false-positive review; a review on
+    another PC.
+-   In the capture's dark pass, the selected row of the Temporary Files
+    rules grid has white text on the light accent; selected rows in
+    other grids have dark text. The capture switches theme while running,
+    so this may not happen in normal use; to check with the app started
+    in dark mode (BLK-006).
+-   High confidence appears only once FreeAll has seen an application
+    removed; the history starts with this version.
+-   Other users' profiles aren't examined.
+-   Carried over: manual F-007 tests, Narrator and high-contrast review,
+    elevated scanning, GitHub push and first CI run.
+
+### Next
+
+Phase 5: duplicate detection.

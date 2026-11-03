@@ -2,12 +2,15 @@
 
 Windows 11 storage intelligence and safe-cleanup desktop application (WPF, .NET 10, x64).
 
-**Status:** Phase 3 (advanced storage analysis). FreeAll scans local drives (read-only, never
-following links; OneDrive and other cloud folders are listed without downloading files), updates them
-incrementally from the NTFS change journal, and stores the results locally. Storage Explorer (list or
-treemap), Large Files, File Categories, Search and Scan History (with comparison) read those results,
-and any list can be exported as CSV, JSON, HTML or PDF. Items can be set aside in a review queue;
-cleanup itself is not implemented yet. See [docs/17-feature-checklist.md](docs/17-feature-checklist.md).
+**Status:** Phase 4 (application residue and temporary files). FreeAll scans local drives
+(read-only, never following links; OneDrive and other cloud folders are listed without downloading
+files), updates them incrementally from the NTFS change journal, and stores the results locally.
+Storage Explorer (list or treemap), Large Files, File Categories, Search and Scan History (with
+comparison) read those results, and any list can be exported as CSV, JSON, HTML or PDF. Application
+Residue lists folders that may be left over from removed programs, with evidence, confidence and risk;
+Temporary Files lists known temporary and cache locations with what removing them would mean. Items can
+be set aside in a review queue; cleanup itself is not implemented yet. See
+[docs/17-feature-checklist.md](docs/17-feature-checklist.md).
 
 FreeAll is free and open source under the [MIT licence](LICENSE).
 

@@ -1,0 +1,169 @@
+<UserControl x:Class="FreeAll.Desktop.Views.TemporaryFilesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:residue="clr-namespace:FreeAll.Desktop.ViewModels.Residue"
+             xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=residue:TemporaryFilesViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <DockPanel Grid.Row="0" Margin="0,0,0,12">
+      <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" />
+      <StackPanel Orientation="Horizontal">
+        <Button Command="{Binding AnalyseCommand}" Style="{StaticResource Button.Accent}">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
+            <TextBlock Text="Look again" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </DockPanel>
+
+    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+      <Border MaxWidth="1100" HorizontalAlignment="Left" Style="{StaticResource Banner.Info}">
+        <DockPanel>
+          <TextBlock Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Info}" Style="{StaticResource Typography.Icon}" Text="&#xE946;" />
+          <TextBlock Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
+            Only locations with a known purpose are listed, each with what removing it would mean. Sizes are from the last scan; "unchanged" counts items nothing has written to recently, which is a hint, not proof they aren't needed. Nothing is removed here.
+          </TextBlock>
+        </DockPanel>
+      </Border>
+      <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding SummaryText}" TextWrapping="Wrap" />
+      <TextBlock AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" Text="{Binding StatusMessage}" Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibility}}" />
+    </StackPanel>
+
+    <Border Grid.Row="2"
+            MaxWidth="560"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Card}"
+            Visibility="{Binding HasScan, Converter={StaticResource InverseBoolToVisibility}}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Scan the Windows drive first" />
+        <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Body}" Text="Temporary files are found in the scan of the drive Windows is on (usually C:). Scan it from the Drives page, then come back." TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="2" Visibility="{Binding HasScan, Converter={StaticResource BoolToVisibility}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="3*" MinWidth="420" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="2*" MinWidth="360" />
+      </Grid.ColumnDefinitions>
+
+      <Border Padding="0" Style="{StaticResource Card}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <ProgressBar AutomationProperties.Name="Looking for temporary files" IsIndeterminate="True" Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Loading}" />
+          <DataGrid Grid.Row="1"
+                    AutomationProperties.Name="Temporary and cache locations"
+                    CanUserSortColumns="False"
+                    ItemsSource="{Binding Rules}"
+                    SelectedItem="{Binding SelectedRule}"
+                    AutoGenerateColumns="False"
+                    BorderThickness="0"
+                    CanUserResizeColumns="True"
+                    GridLinesVisibility="None"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    SelectionMode="Single">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="*" MinWidth="160" Binding="{Binding Title}" ElementStyle="{StaticResource Cell.Secondary}" Header="Location" />
+              <DataGridTextColumn Width="116" MinWidth="116" Binding="{Binding SizeText}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+              <DataGridTextColumn Width="130" MinWidth="130" Binding="{Binding AgeText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Unchanged" />
+              <DataGridTextColumn Width="70" MinWidth="70" Binding="{Binding RiskText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Risk" />
+              <DataGridTextColumn Width="150" MinWidth="150" Binding="{Binding StatusText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Status" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" AutomationProperties.Name="Resize details pane" />
+
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border MaxHeight="400" Margin="0,0,0,12" Style="{StaticResource Card}">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource Typography.Title}" Text="{Binding SelectedRule.Title}" />
+              <ItemsControl Focusable="False" ItemsSource="{Binding SelectedRule.Details}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type index:DetailField}">
+                    <StackPanel>
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                      <TextBox AutomationProperties.Name="{Binding Label}" Style="{StaticResource SelectableMonospace}" Text="{Binding Value, Mode=OneWay}" Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}" />
+                      <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Value}" TextWrapping="Wrap" Visibility="{Binding IsPath, Converter={StaticResource InverseBoolToVisibility}}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <WrapPanel Margin="0,8,0,0">
+                <Button Margin="0,0,8,0" Command="{Binding KeepRuleCommand}" Content="Keep (don't suggest)" ToolTip="Don't count or suggest this location again" />
+                <Button Margin="0,0,8,0" Command="{Binding UndoRuleCommand}" Content="Undo decision" />
+              </WrapPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <Border Grid.Row="1" Padding="0" Style="{StaticResource Card}">
+          <DockPanel>
+            <WrapPanel Margin="12,8" DockPanel.Dock="Top">
+              <Button Margin="0,0,8,4" Command="{Binding AddToReviewCommand}" Content="Add to review queue" ToolTip="Locations Windows manages can't be added" />
+              <Button Margin="0,0,8,4" Command="{Binding RevealCommand}" Content="Open in File Explorer" />
+              <Button Margin="0,0,8,4" Command="{Binding ShowInExplorerCommand}" Content="Show in Storage Explorer" />
+              <Button Margin="0,0,8,4" Command="{Binding CopyPathCommand}" Content="Copy path" />
+            </WrapPanel>
+            <TextBlock Margin="12,4" DockPanel.Dock="Top" Style="{StaticResource Typography.Caption}" Text="Not found in the scan." Visibility="{Binding Matches.Count, Converter={StaticResource InverseNullToVisibility}}" />
+            <DataGrid AutomationProperties.Name="Folders found"
+                      CanUserSortColumns="False"
+                      ItemsSource="{Binding Matches}"
+                      SelectedItem="{Binding SelectedMatch}"
+                      SelectionChanged="OnMatchesSelectionChanged"
+                      AutoGenerateColumns="False"
+                      BorderThickness="0"
+                      CanUserResizeColumns="True"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Extended">
+              <DataGrid.Columns>
+                <DataGridTextColumn Width="*" MinWidth="130" Binding="{Binding FullPath}" ElementStyle="{StaticResource Cell.Secondary}" Header="Folder" />
+                <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding AllocatedSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+                <DataGridTextColumn Width="124" MinWidth="124" Binding="{Binding OldText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Unchanged" />
+                <DataGridTextColumn Width="96" MinWidth="96" Binding="{Binding LastChange, StringFormat=d}" ElementStyle="{StaticResource Cell.Secondary}" Header="Last change" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2"
+            MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Temporary files couldn't be looked for" />
+        <TextBlock Margin="0,4,0,8" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        <Button HorizontalAlignment="Left" Command="{Binding AnalyseCommand}" Content="Try again" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

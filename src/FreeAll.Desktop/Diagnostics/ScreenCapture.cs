@@ -120,6 +120,7 @@ internal static class ScreenCapture
         }
 
         metrics.AddRange(await MeasureExplorerAsync(shell, ui));
+        metrics.AddRange(await DumpResidueAsync(services, directory));
 
         // Narrow window: compact navigation rail.
         window.Width = 900;
@@ -200,6 +201,48 @@ internal static class ScreenCapture
             string.Format(culture, "scan: working set {0:N0} MB before, peak {1:N0} MB", before >> 20, process.PeakWorkingSet64 >> 20),
             string.Format(culture, "scan: UI idle delay while scanning: median {0:F0} ms, max {1:F0} ms ({2} samples)", Median(uiDelays), uiDelays.DefaultIfEmpty(0).Max(), uiDelays.Count),
             string.Format(culture, "scan: database {0:N0} MB (+ WAL {1:N0} MB)", database.Exists ? database.Length >> 20 : 0, wal.Exists ? wal.Length >> 20 : 0),
+        ];
+    }
+
+    /// <summary>Writes every residue candidate and temporary-file match to text files, for the false-positive review.</summary>
+    private static async Task<List<string>> DumpResidueAsync(IServiceProvider services, string directory)
+    {
+        var system = await services.GetRequiredService<ISystemDrive>().FindAsync(CancellationToken.None);
+        if (system.Session is not { } session)
+        {
+            return ["residue: no scan of the Windows drive"];
+        }
+
+        var culture = CultureInfo.InvariantCulture;
+        var stopwatch = Stopwatch.StartNew();
+        var (installed, problems) = await services.GetRequiredService<IApplicationInventory>().ReadAsync(CancellationToken.None);
+        var known = await services.GetRequiredService<IApplicationStore>().RecordAsync(installed, CancellationToken.None);
+        var inventoryTime = stopwatch.Elapsed;
+        stopwatch.Restart();
+        var decisions = services.GetRequiredService<IDecisionStore>();
+        var report = await new Residue.Discovery.ResidueAnalyzer(services.GetRequiredService<IScanIndex>()).AnalyzeAsync(
+            new Residue.Discovery.ResidueContext(session, system.ProfilePath, known, await decisions.GetAllAsync(DecisionFeature.ApplicationResidue, CancellationToken.None), DateTime.UtcNow, system.PathFolders),
+            CancellationToken.None);
+        var residueTime = stopwatch.Elapsed;
+        await File.WriteAllLinesAsync(
+            Path.Combine(directory, "residue.txt"),
+            report.Candidates.Select(c => string.Join(" | ", ResidueText.Confidence(c.Confidence), ResidueText.Risk(c.Risk), ByteSizeFormatter.Format(c.Folder.AllocatedSize, culture), session.DisplayPath(c.Folder.RelativePath), c.GroupName, string.Join(" ", c.Evidence.Where(e => e.Supports).Select(e => e.Text)))));
+
+        stopwatch.Restart();
+        var temporary = await new Residue.Temporary.TemporaryAnalyzer(services.GetRequiredService<IScanIndex>()).AnalyzeAsync(
+            session, system.ProfilePath, await decisions.GetAllAsync(DecisionFeature.TemporaryFiles, CancellationToken.None), DateTime.UtcNow, CancellationToken.None);
+        var temporaryTime = stopwatch.Elapsed;
+        await File.WriteAllLinesAsync(
+            Path.Combine(directory, "temporary.txt"),
+            temporary.SelectMany(r => r.Matches.Select(m => string.Join(" | ", r.Rule.Id, ByteSizeFormatter.Format(m.Folder.AllocatedSize, culture), m.OldBytes is { } old ? ByteSizeFormatter.Format(old, culture) : "-", session.DisplayPath(m.Folder.RelativePath)))));
+
+        return
+        [
+            string.Format(culture, "inventory: {0} applications ({1} problems) in {2:F1} s", installed.Count, problems.Count, inventoryTime.TotalSeconds),
+            string.Format(culture, "residue: {0} examined, {1} attributed, {2} skipped, {9} in use, {3} candidates (high {4}, medium {5}, low {6}, unknown {7}) in {8:F1} s", report.FoldersExamined, report.AttributedToInstalled, report.Skipped, report.Candidates.Count,
+                report.Candidates.Count(c => c.Confidence == Core.Residue.ResidueConfidence.High), report.Candidates.Count(c => c.Confidence == Core.Residue.ResidueConfidence.Medium),
+                report.Candidates.Count(c => c.Confidence == Core.Residue.ResidueConfidence.Low), report.Candidates.Count(c => c.Confidence == Core.Residue.ResidueConfidence.Unknown), residueTime.TotalSeconds, report.InUse),
+            string.Format(culture, "temporary: {0} locations found in {1:F1} s", temporary.Sum(r => r.Matches.Count), temporaryTime.TotalSeconds),
         ];
     }
 

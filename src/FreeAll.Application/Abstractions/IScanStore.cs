@@ -79,8 +79,17 @@ public interface IScanIndex
     /// <summary>The folder and its ancestors, scan root first.</summary>
     Task<IReadOnlyList<IndexEntry>> GetFolderChainAsync(long sessionId, int directoryKey, CancellationToken cancellationToken);
 
+    /// <summary>The folder at a volume-relative path (exact case first, then any case), or null.</summary>
+    Task<IndexEntry?> GetFolderByPathAsync(long sessionId, string relativePath, CancellationToken cancellationToken);
+
     /// <summary>Subfolders ordered by name.</summary>
     Task<IReadOnlyList<IndexEntry>> GetSubfoldersAsync(long sessionId, int parentKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The direct files and subfolders of a folder unchanged since <paramref name="cutoffUtc"/>: a file by its last write, a
+    /// subfolder by the newest file anywhere inside it (its own time when that isn't recorded). Items without a time don't count.
+    /// </summary>
+    Task<UnchangedChildren> GetUnchangedChildrenAsync(long sessionId, int parentKey, DateTime cutoffUtc, CancellationToken cancellationToken);
 
     /// <summary>One page of a folder's subfolders and files, sorted in the database.</summary>
     Task<IndexPage> GetChildrenAsync(long sessionId, int parentKey, EntryOrder order, int offset, int limit, CancellationToken cancellationToken);

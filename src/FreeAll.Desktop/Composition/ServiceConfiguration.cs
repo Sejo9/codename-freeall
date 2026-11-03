@@ -7,9 +7,11 @@ using FreeAll.Core.Diagnostics;
 using FreeAll.Desktop.Services;
 using FreeAll.Desktop.ViewModels;
 using FreeAll.Desktop.ViewModels.Index;
+using FreeAll.Desktop.ViewModels.Residue;
 using FreeAll.Infrastructure.Export;
 using FreeAll.Infrastructure.Persistence;
 using FreeAll.Infrastructure.Persistence.Migrations;
+using FreeAll.Residue.Inventory;
 using FreeAll.Scanner.Enumeration;
 using FreeAll.Scanner.Journal;
 using FreeAll.Scanner.Volumes;
@@ -48,6 +50,9 @@ internal static class ServiceConfiguration
         services.AddSingleton<IReviewQueueStore, SqliteReviewQueueStore>();
         services.AddSingleton<ReviewQueueService>();
         services.AddSingleton<IReportExporter, ReportExporter>();
+        services.AddSingleton<IApplicationInventory, RegistryApplicationInventory>();
+        services.AddSingleton<IApplicationStore, SqliteApplicationStore>();
+        services.AddSingleton<IDecisionStore, SqliteDecisionStore>();
         services.AddSingleton(ScanOptions.Default);
         services.AddSingleton(sp => new ScanCoordinator(
             sp.GetRequiredService<IVolumeScanner>(),
@@ -77,6 +82,7 @@ internal static class ServiceConfiguration
         services.AddSingleton<IFileSaveDialog, WpfFileSaveDialog>();
         services.AddSingleton<IConfirmation, MessageBoxConfirmation>();
         services.AddSingleton<ExportActions>();
+        services.AddSingleton<ISystemDrive, SystemDrive>();
         services.AddSingleton<SearchViewModel>();
         services.AddSingleton<ReviewQueueViewModel>();
 
@@ -87,6 +93,8 @@ internal static class ServiceConfiguration
         services.AddTransient<LargeFilesViewModel>();
         services.AddTransient<CategoriesViewModel>();
         services.AddTransient<ScanHistoryViewModel>();
+        services.AddTransient<ResidueViewModel>();
+        services.AddTransient<TemporaryFilesViewModel>();
         services.AddSingleton(sp => new ShellViewModel(
             CreateNavigation(sp),
             sp.GetRequiredService<IAppDatabase>(),
@@ -107,8 +115,8 @@ internal static class ServiceConfiguration
         new("explorer", "Storage Explorer", "", sp.GetRequiredService<ExplorerViewModel>),
         new("categories", "File Categories", "", sp.GetRequiredService<CategoriesViewModel>),
         new("large", "Large Files", "", sp.GetRequiredService<LargeFilesViewModel>),
-        Placeholder("residue", "Application Residue", "", "Possible leftovers from removed applications, each with its evidence, confidence and risk."),
-        Placeholder("temporary", "Temporary Files", "", "Known temporary and cache locations, with what each one is for and the risk of removing it."),
+        new("residue", "Application Residue", "", sp.GetRequiredService<ResidueViewModel>),
+        new("temporary", "Temporary Files", "", sp.GetRequiredService<TemporaryFilesViewModel>),
         Placeholder("duplicates", "Duplicate Files", "", "Exact duplicate files within each drive, verified byte for byte. Nothing is selected for removal automatically."),
         Placeholder("windows", "Windows Storage", "", "How Windows itself uses storage, and the cleanup options Windows supports."),
         new("history", "Scan History", "", sp.GetRequiredService<ScanHistoryViewModel>),

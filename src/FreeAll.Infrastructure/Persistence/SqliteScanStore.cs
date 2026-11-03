@@ -34,7 +34,7 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
         (int)DirectoryScanState.DepthLimit,
     ];
 
-    private static readonly string[] TotalParameters = ["$f", "$d", "$l", "$a", "$i", "$k"];
+    private static readonly string[] TotalParameters = ["$f", "$d", "$l", "$a", "$i", "$n", "$u", "$k"];
 
     private readonly SqliteAppDatabase _database;
     private readonly TimeProvider _time;
@@ -391,8 +391,8 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
                     }
 
                     using var copy = Command(connection, transaction, """
-                        INSERT INTO Directories (SessionId, DirKey, ParentKey, Depth, Name, RelativePath, State, Attributes, ReparseTag, FileId, CreatedTicks, ModifiedTicks, FileCount, LogicalBytes, AllocatedBytes)
-                        SELECT $to, DirKey, ParentKey, Depth, Name, RelativePath, State, Attributes, ReparseTag, FileId, CreatedTicks, ModifiedTicks, FileCount, LogicalBytes, AllocatedBytes
+                        INSERT INTO Directories (SessionId, DirKey, ParentKey, Depth, Name, RelativePath, State, Attributes, ReparseTag, FileId, CreatedTicks, ModifiedTicks, FileCount, LogicalBytes, AllocatedBytes, NewestFileTicks, UserContentBytes)
+                        SELECT $to, DirKey, ParentKey, Depth, Name, RelativePath, State, Attributes, ReparseTag, FileId, CreatedTicks, ModifiedTicks, FileCount, LogicalBytes, AllocatedBytes, NewestFileTicks, UserContentBytes
                         FROM Directories WHERE SessionId = $from AND DirKey > $last AND DirKey <= $high;
                         """);
                     copy.Parameters.AddWithValue("$to", toSessionId);
@@ -516,7 +516,7 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
     /// <summary>Every folder's own figures. Bounded by the number of folders, not files.</summary>
     private static List<FolderFigures> LoadFolders(SqliteConnection connection, SqliteTransaction transaction, long sessionId)
     {
-        using var command = Command(connection, transaction, "SELECT DirKey, ParentKey, Depth, State, FileCount, LogicalBytes, AllocatedBytes FROM Directories WHERE SessionId = $s;");
+        using var command = Command(connection, transaction, "SELECT DirKey, ParentKey, Depth, State, FileCount, LogicalBytes, AllocatedBytes, NewestFileTicks, UserContentBytes FROM Directories WHERE SessionId = $s;");
         command.Parameters.AddWithValue("$s", sessionId);
         var folders = new List<FolderFigures>();
         using var reader = command.ExecuteReader();
@@ -529,7 +529,9 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
                 (DirectoryScanState)reader.GetInt32(3),
                 reader.GetInt64(4),
                 reader.GetInt64(5),
-                reader.GetInt64(6)));
+                reader.GetInt64(6),
+                reader.IsDBNull(7) ? null : reader.GetInt64(7),
+                reader.GetInt64(8)));
         }
 
         return folders;
@@ -654,7 +656,8 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
     {
         var rolled = FolderRollup.Compute(folders);
         using (var write = Command(connection, transaction, """
-            UPDATE Directories SET TotalFileCount = $f, TotalDirectoryCount = $d, TotalLogicalBytes = $l, TotalAllocatedBytes = $a, IncompleteCount = $i
+            UPDATE Directories SET TotalFileCount = $f, TotalDirectoryCount = $d, TotalLogicalBytes = $l, TotalAllocatedBytes = $a, IncompleteCount = $i,
+                TotalNewestFileTicks = $n, TotalUserContentBytes = $u
             WHERE SessionId = $s AND DirKey = $k;
             """))
         {
@@ -668,7 +671,9 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
                 p[2].Value = total.LogicalBytes;
                 p[3].Value = total.AllocatedBytes;
                 p[4].Value = total.Incomplete;
-                p[5].Value = (long)key;
+                p[5].Value = (object?)total.NewestFileTicks ?? DBNull.Value;
+                p[6].Value = total.UserContentBytes;
+                p[7].Value = (long)key;
                 write.ExecuteNonQuery();
             }
         }
@@ -807,7 +812,7 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
 
     private sealed class DirectoryInsert : IDisposable
     {
-        private static readonly string[] Names = ["$k", "$p", "$d", "$n", "$r", "$st", "$a", "$t", "$id", "$c", "$m", "$fc", "$lb", "$ab"];
+        private static readonly string[] Names = ["$k", "$p", "$d", "$n", "$r", "$st", "$a", "$t", "$id", "$c", "$m", "$fc", "$lb", "$ab", "$nf", "$uc"];
 
         private readonly SqliteCommand _command;
         private readonly SqliteParameter[] _p;
@@ -816,8 +821,8 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
         {
             // OR REPLACE: an incremental update rewrites the row of a folder it lists again.
             _command = Command(connection, transaction, """
-                INSERT OR REPLACE INTO Directories (SessionId, DirKey, ParentKey, Depth, Name, RelativePath, State, Attributes, ReparseTag, FileId, CreatedTicks, ModifiedTicks, FileCount, LogicalBytes, AllocatedBytes)
-                VALUES ($s, $k, $p, $d, $n, $r, $st, $a, $t, $id, $c, $m, $fc, $lb, $ab);
+                INSERT OR REPLACE INTO Directories (SessionId, DirKey, ParentKey, Depth, Name, RelativePath, State, Attributes, ReparseTag, FileId, CreatedTicks, ModifiedTicks, FileCount, LogicalBytes, AllocatedBytes, NewestFileTicks, UserContentBytes)
+                VALUES ($s, $k, $p, $d, $n, $r, $st, $a, $t, $id, $c, $m, $fc, $lb, $ab, $nf, $uc);
                 """);
             _command.Parameters.AddWithValue("$s", sessionId);
             _p = [.. Names.Select(name => _command.Parameters.AddWithValue(name, DBNull.Value))];
@@ -840,6 +845,8 @@ public sealed partial class SqliteScanStore : IScanStore, IScanIndex
             _p[11].Value = d.FileCount;
             _p[12].Value = d.LogicalBytes;
             _p[13].Value = d.AllocatedBytes;
+            _p[14].Value = Ticks(d.NewestFileUtc);
+            _p[15].Value = d.UserContentBytes;
             _command.ExecuteNonQuery();
         }
 

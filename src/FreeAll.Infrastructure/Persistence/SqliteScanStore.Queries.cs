@@ -22,12 +22,12 @@ public sealed partial class SqliteScanStore
 
     private const string FolderColumns = """
         DirKey, Name, RelativePath, TotalLogicalBytes, TotalAllocatedBytes, TotalFileCount, TotalDirectoryCount,
-        CreatedTicks, ModifiedTicks, Attributes, ReparseTag, FileId, State, IncompleteCount
+        CreatedTicks, ModifiedTicks, Attributes, ReparseTag, FileId, State, IncompleteCount, TotalNewestFileTicks, TotalUserContentBytes
         """;
 
     private const string QualifiedFolderColumns = """
         d.DirKey, d.Name, d.RelativePath, d.TotalLogicalBytes, d.TotalAllocatedBytes, d.TotalFileCount, d.TotalDirectoryCount,
-        d.CreatedTicks, d.ModifiedTicks, d.Attributes, d.ReparseTag, d.FileId, d.State, d.IncompleteCount
+        d.CreatedTicks, d.ModifiedTicks, d.Attributes, d.ReparseTag, d.FileId, d.State, d.IncompleteCount, d.TotalNewestFileTicks, d.TotalUserContentBytes
         """;
 
     private const string FileColumns = """
@@ -94,6 +94,68 @@ public sealed partial class SqliteScanStore
             cancellationToken,
             ("$k", directoryKey));
 
+    public async Task<IndexEntry?> GetFolderByPathAsync(long sessionId, string relativePath, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(relativePath);
+        var folders = await ReadFoldersAsync(
+            $"SELECT {FolderColumns} FROM Directories INDEXED BY IX_Directories_Path WHERE SessionId = $s AND RelativePath = $path;",
+            sessionId,
+            cancellationToken,
+            ("$path", relativePath)).ConfigureAwait(false);
+
+        // Paths are stored with their case on disk; NTFS compares names without case by default.
+        if (folders.Count > 0)
+        {
+            return folders[0];
+        }
+
+        // Walk down from the scan root by name, using the parent index: a path compared without case can't use the path index,
+        // and scanning every folder takes seconds on a large drive.
+        var key = await ReadAsync<int?>(
+            connection =>
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT DirKey, RelativePath FROM Directories INDEXED BY IX_Directories_Parent WHERE SessionId = $s AND ParentKey IS NULL;";
+                command.Parameters.AddWithValue("$s", sessionId);
+                int current;
+                string rootPath;
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        return null;
+                    }
+
+                    current = reader.GetInt32(0);
+                    rootPath = reader.GetString(1);
+                }
+
+                if (!VolumePath.IsSameOrBelow(relativePath, rootPath))
+                {
+                    return null;
+                }
+
+                command.CommandText = "SELECT DirKey FROM Directories INDEXED BY IX_Directories_Parent WHERE SessionId = $s AND ParentKey = $p AND Name = $n COLLATE NOCASE LIMIT 1;";
+                var parent = command.Parameters.AddWithValue("$p", 0);
+                var name = command.Parameters.AddWithValue("$n", string.Empty);
+                foreach (var segment in relativePath[rootPath.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    parent.Value = current;
+                    name.Value = segment;
+                    if (command.ExecuteScalar() is not long next)
+                    {
+                        return null;
+                    }
+
+                    current = (int)next;
+                }
+
+                return current;
+            },
+            cancellationToken).ConfigureAwait(false);
+        return key is { } found ? await GetFolderAsync(sessionId, found, cancellationToken).ConfigureAwait(false) : null;
+    }
+
     public Task<IReadOnlyList<IndexEntry>> GetSubfoldersAsync(long sessionId, int parentKey, CancellationToken cancellationToken) =>
         ReadFoldersAsync($"SELECT {FolderColumns} FROM Directories INDEXED BY IX_Directories_Parent WHERE SessionId = $s AND ParentKey = $p ORDER BY Name COLLATE NOCASE;", sessionId, cancellationToken, ("$p", parentKey));
 
@@ -131,12 +193,14 @@ public sealed partial class SqliteScanStore
                 command.CommandText = $"""
                     SELECT 0 AS Kind, DirKey, NULL AS FileRowId, Name, '' AS Extension, TotalLogicalBytes AS LogicalSize, TotalAllocatedBytes AS AllocatedSize,
                            TotalFileCount, TotalDirectoryCount, CreatedTicks, ModifiedTicks, NULL AS AccessedTicks, Attributes, ReparseTag, FileId,
-                           NULL AS Category, NULL AS CategoryReason, State, IncompleteCount, 1 AS LinkCount
+                           NULL AS Category, NULL AS CategoryReason, State, IncompleteCount, 1 AS LinkCount,
+                           TotalNewestFileTicks AS Newest, TotalUserContentBytes AS UserContent
                     FROM Directories INDEXED BY IX_Directories_Parent WHERE SessionId = $s AND ParentKey = $p
                     UNION ALL
                     SELECT 1, DirKey, Id, Name, Extension, LogicalSize, AllocatedSize,
                            NULL, NULL, CreatedTicks, ModifiedTicks, AccessedTicks, Attributes, ReparseTag, FileId,
-                           Category, CategoryReason, NULL, 0, LinkCount
+                           Category, CategoryReason, NULL, 0, LinkCount,
+                           ModifiedTicks, CASE WHEN Category IN (1, 2, 3, 4, 5, 6) THEN AllocatedSize ELSE 0 END
                     FROM Files WHERE SessionId = $s AND DirKey = $p
                     ORDER BY {OrderBy(order)}
                     LIMIT $limit OFFSET $offset;
@@ -174,7 +238,9 @@ public sealed partial class SqliteScanStore
                             reader.IsDBNull(15) ? null : new FileClassification((FileCategory)reader.GetInt32(15), (ClassificationReason)reader.GetInt32(16)),
                             reader.IsDBNull(17) ? null : (DirectoryScanState)reader.GetInt32(17),
                             reader.GetInt64(18),
-                            reader.GetInt32(19)));
+                            reader.GetInt32(19),
+                            Time(reader, 20),
+                            reader.GetInt64(21)));
                     }
                 }
 
@@ -259,6 +325,27 @@ public sealed partial class SqliteScanStore
 
         return results.OrderByDescending(f => f.AllocatedSize).ThenBy(f => f.SessionId).Take(limit).ToList();
     }
+
+    public Task<UnchangedChildren> GetUnchangedChildrenAsync(long sessionId, int parentKey, DateTime cutoffUtc, CancellationToken cancellationToken) =>
+        ReadAsync(
+            connection =>
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    SELECT COALESCE(SUM(Bytes), 0), COUNT(*) FROM (
+                        SELECT TotalAllocatedBytes AS Bytes FROM Directories INDEXED BY IX_Directories_Parent
+                        WHERE SessionId = $s AND ParentKey = $p AND COALESCE(TotalNewestFileTicks, ModifiedTicks) < $c
+                        UNION ALL
+                        SELECT AllocatedSize FROM Files WHERE SessionId = $s AND DirKey = $p AND ModifiedTicks < $c);
+                    """;
+                command.Parameters.AddWithValue("$s", sessionId);
+                command.Parameters.AddWithValue("$p", parentKey);
+                command.Parameters.AddWithValue("$c", cutoffUtc.ToFileTimeUtc());
+                using var reader = command.ExecuteReader();
+                reader.Read();
+                return new UnchangedChildren(reader.GetInt64(0), reader.GetInt64(1));
+            },
+            cancellationToken);
 
     public Task<IReadOnlyList<CategoryTotal>> GetCategoryTotalsAsync(long sessionId, CancellationToken cancellationToken) =>
         ReadAsync<IReadOnlyList<CategoryTotal>>(
@@ -566,7 +653,9 @@ public sealed partial class SqliteScanStore
         Identity(reader, 11),
         null,
         (DirectoryScanState)reader.GetInt32(12),
-        reader.GetInt64(13));
+        reader.GetInt64(13),
+        NewestFileUtc: Time(reader, 14),
+        UserContentBytes: reader.GetInt64(15));
 
     /// <summary>Maps <see cref="FileColumns"/> starting at ordinal 0.</summary>
     private static IndexEntry ReadFile(SqliteDataReader reader, long sessionId, string folderPath)

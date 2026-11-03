@@ -167,4 +167,21 @@ public sealed class FolderRollupTests
         Assert.Equal(new FolderTotal(0, 0, 0, 0, 1), totals[3]);
         Assert.Equal(new FolderTotal(3, 0, 3000, 4096, 0), totals[4]);
     }
+
+    [Fact]
+    public void The_newest_file_time_and_documents_size_roll_up()
+    {
+        var totals = FolderRollup.Compute(
+        [
+            new(1, null, 0, DirectoryScanState.Scanned, 0, 0, 0),
+            new(2, 1, 1, DirectoryScanState.Scanned, 1, 10, 10, NewestFileTicks: 500, UserContentBytes: 10),
+            new(3, 2, 2, DirectoryScanState.Scanned, 1, 10, 10, NewestFileTicks: 900, UserContentBytes: 0),
+            new(4, 1, 1, DirectoryScanState.Scanned, 1, 10, 10, NewestFileTicks: null, UserContentBytes: 7),
+        ]);
+
+        Assert.Equal(900, totals[1].NewestFileTicks);
+        Assert.Equal(17, totals[1].UserContentBytes);
+        Assert.Equal(900, totals[2].NewestFileTicks);
+        Assert.Null(totals[4].NewestFileTicks);
+    }
 }

@@ -5,6 +5,9 @@
 No product question is open. BLK-017 was resolved on 2026-11-03
 (DEC-029).
 
+Phase 4's exit criterion needs a person: the product owner's sign-off on
+the residue false-positive review (BLK-018, below).
+
 Two manual checks need hands on a physical PC and can't be done by the
 development agent: changing a drive letter (needs administrator rights)
 and unplugging a USB drive during a scan. The procedure is in
@@ -48,7 +51,25 @@ F-007 in `17-feature-checklist.md`).
 
   BLK-009        Performance    Must be based on real Benchmark baseline and      IN PROGRESS
                  targets        hardware              proposed SLOs               
+
+  BLK-018        Residue        A wrong "leftover"    Owner sign-off on the       OPEN
+                 false-positive could cost data       development-PC review; a    
+                 sign-off                             review on another PC        
   ----------------------------------------------------------------------------------------------
+
+## Validation evidence (Phase 4, 2026-11-03)
+
+### BLK-018 --- Residue false-positive sign-off: OPEN
+
+The development agent reviewed every candidate on the development PC
+(`18-development-log.md`, Phase 4) and changed the rules where they were
+wrong (TD-034, rules version 2). What it can't do is confirm which of
+the remaining folders really are leftovers: only the PC's owner knows
+whether MobaXterm, Godot or Obsidian were removed or are used as
+portable programs. Needed: (1) the owner marks each of the 33 remaining
+candidates as right or wrong (the Keep, Ignore and "In use by" buttons
+record exactly that), and (2) the same review on a PC that isn't used
+for development. Until then F-023 stays IMPLEMENTED.
 
 ## Validation evidence (Phase 3, 2026-11-03)
 

@@ -36,3 +36,18 @@ public enum ClassificationReason
 }
 
 public readonly record struct FileClassification(FileCategory Category, ClassificationReason Reason);
+
+public static class FileCategories
+{
+    /// <summary>
+    /// Categories that are usually a person's own content (documents, pictures, music, videos). A folder
+    /// holding them is never presented as low risk.
+    /// </summary>
+    public static bool IsUserContent(this FileCategory category) => category is
+        FileCategory.Documents or
+        FileCategory.Spreadsheets or
+        FileCategory.Presentations or
+        FileCategory.Images or
+        FileCategory.Videos or
+        FileCategory.Audio;
+}

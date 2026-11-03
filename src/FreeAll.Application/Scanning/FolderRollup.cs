@@ -10,10 +10,12 @@ namespace FreeAll.Application.Scanning;
 /// <param name="FileCount">Files directly inside.</param>
 /// <param name="LogicalBytes">Their logical size, plus the folder's hard-link correction.</param>
 /// <param name="AllocatedBytes">Their allocated size, plus the folder's hard-link correction.</param>
-public readonly record struct FolderFigures(int Key, int? ParentKey, int Depth, DirectoryScanState State, long FileCount, long LogicalBytes, long AllocatedBytes);
+/// <param name="NewestFileTicks">Latest last-write time (FILETIME) of the files directly inside, when known.</param>
+/// <param name="UserContentBytes">Allocated size of the documents, pictures, music and videos directly inside.</param>
+public readonly record struct FolderFigures(int Key, int? ParentKey, int Depth, DirectoryScanState State, long FileCount, long LogicalBytes, long AllocatedBytes, long? NewestFileTicks = null, long UserContentBytes = 0);
 
 /// <summary>Recursive totals of one folder.</summary>
-public readonly record struct FolderTotal(long Files, long Folders, long LogicalBytes, long AllocatedBytes, long Incomplete);
+public readonly record struct FolderTotal(long Files, long Folders, long LogicalBytes, long AllocatedBytes, long Incomplete, long? NewestFileTicks = null, long UserContentBytes = 0);
 
 /// <summary>
 /// Computes recursive folder totals in memory, deepest folders first (TD-026). Memory is proportional to
@@ -29,7 +31,7 @@ public static class FolderRollup
         var totals = new Dictionary<int, FolderTotal>(folders.Count);
         foreach (var folder in folders)
         {
-            totals[folder.Key] = new FolderTotal(folder.FileCount, 0, folder.LogicalBytes, folder.AllocatedBytes, folder.State.AffectsCompleteness() ? 1 : 0);
+            totals[folder.Key] = new FolderTotal(folder.FileCount, 0, folder.LogicalBytes, folder.AllocatedBytes, folder.State.AffectsCompleteness() ? 1 : 0, folder.NewestFileTicks, folder.UserContentBytes);
         }
 
         foreach (var folder in folders.OrderByDescending(f => f.Depth))
@@ -42,10 +44,14 @@ public static class FolderRollup
                     parent.Folders + 1 + own.Folders,
                     parent.LogicalBytes + own.LogicalBytes,
                     parent.AllocatedBytes + own.AllocatedBytes,
-                    parent.Incomplete + own.Incomplete);
+                    parent.Incomplete + own.Incomplete,
+                    Max(parent.NewestFileTicks, own.NewestFileTicks),
+                    parent.UserContentBytes + own.UserContentBytes);
             }
         }
 
         return totals;
     }
+
+    private static long? Max(long? a, long? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
 }

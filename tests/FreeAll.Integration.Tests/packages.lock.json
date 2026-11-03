@@ -206,6 +206,13 @@
           "Serilog.Sinks.File": "[7.0.0, )"
         }
       },
+      "freeall.residue": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )"
+        }
+      },
       "freeall.scanner": {
         "type": "Project",
         "dependencies": {

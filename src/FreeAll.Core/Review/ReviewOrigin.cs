@@ -7,4 +7,6 @@ public enum ReviewOrigin
     LargeFiles = 1,
     Search = 2,
     Treemap = 3,
+    ApplicationResidue = 4,
+    TemporaryFiles = 5,
 }

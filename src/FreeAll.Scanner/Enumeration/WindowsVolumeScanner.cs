@@ -17,9 +17,10 @@ public sealed partial class WindowsVolumeScanner : IVolumeScanner
 {
     /// <summary>
     /// Increase when traversal or metadata behaviour changes. 2: cloud placeholder folders are listed
-    /// (BLK-017) and a change journal checkpoint is taken before listing.
+    /// (BLK-017) and a change journal checkpoint is taken before listing. 3: each folder records its newest
+    /// file time and its documents/media size (residue and temporary-file evidence).
     /// </summary>
-    public const int ScannerVersion = 2;
+    public const int ScannerVersion = 3;
 
     private readonly ILogger<WindowsVolumeScanner> _logger;
 
