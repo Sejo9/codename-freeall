@@ -15,7 +15,9 @@ public sealed partial class SqliteScanStore
         s.Id, d.VolumeGuid, d.Label, d.MountPoints, s.RootPath, s.State, s.StartedUtc, s.EndedUtc,
         s.DirectoryCount, s.FileCount, s.LogicalBytes, s.AllocatedBytes, s.IssueCount, s.MaterialIssueCount,
         s.ReparseSkippedCount, s.ExcludedCount, s.NotScannedCount, s.VolumeTotalBytes, s.VolumeFreeBytes,
-        s.Exclusions, s.ReparsePolicy, s.ScannerVersion, s.ClassifierVersion, s.Note, s.HasInventory
+        s.Exclusions, s.ReparsePolicy, s.ScannerVersion, s.ClassifierVersion, s.Note, s.HasInventory,
+        s.Kind, s.BaseSessionId, s.JournalId, s.JournalUsn, s.ChangedDirectoryCount, s.TotalsVersion,
+        s.LinkedFileCount, s.LinkedLogicalBytes, s.LinkedAllocatedBytes, s.CloudFileCount, s.CloudLogicalBytes
         """;
 
     private const string FolderColumns = """
@@ -23,10 +25,20 @@ public sealed partial class SqliteScanStore
         CreatedTicks, ModifiedTicks, Attributes, ReparseTag, FileId, State, IncompleteCount
         """;
 
+    private const string QualifiedFolderColumns = """
+        d.DirKey, d.Name, d.RelativePath, d.TotalLogicalBytes, d.TotalAllocatedBytes, d.TotalFileCount, d.TotalDirectoryCount,
+        d.CreatedTicks, d.ModifiedTicks, d.Attributes, d.ReparseTag, d.FileId, d.State, d.IncompleteCount
+        """;
+
     private const string FileColumns = """
         f.DirKey, f.Id, f.Name, f.Extension, f.LogicalSize, f.AllocatedSize, f.CreatedTicks, f.ModifiedTicks,
-        f.AccessedTicks, f.Attributes, f.ReparseTag, f.FileId, f.Category, f.CategoryReason
+        f.AccessedTicks, f.Attributes, f.ReparseTag, f.FileId, f.Category, f.CategoryReason, f.LinkCount
         """;
+
+    /// <summary>Number of columns in <see cref="FileColumns"/>; a following column is at this ordinal.</summary>
+    private const int FileColumnCount = 15;
+
+    private const int ExportChunk = 5_000;
 
     // Index choices are fixed with INDEXED BY and CROSS JOIN: without ANALYZE statistics SQLite scanned a
     // session's whole primary-key range instead (measured on a 1M-file scan: folder listing 117 ms → 0.2 ms,
@@ -119,12 +131,12 @@ public sealed partial class SqliteScanStore
                 command.CommandText = $"""
                     SELECT 0 AS Kind, DirKey, NULL AS FileRowId, Name, '' AS Extension, TotalLogicalBytes AS LogicalSize, TotalAllocatedBytes AS AllocatedSize,
                            TotalFileCount, TotalDirectoryCount, CreatedTicks, ModifiedTicks, NULL AS AccessedTicks, Attributes, ReparseTag, FileId,
-                           NULL AS Category, NULL AS CategoryReason, State, IncompleteCount
+                           NULL AS Category, NULL AS CategoryReason, State, IncompleteCount, 1 AS LinkCount
                     FROM Directories INDEXED BY IX_Directories_Parent WHERE SessionId = $s AND ParentKey = $p
                     UNION ALL
                     SELECT 1, DirKey, Id, Name, Extension, LogicalSize, AllocatedSize,
                            NULL, NULL, CreatedTicks, ModifiedTicks, AccessedTicks, Attributes, ReparseTag, FileId,
-                           Category, CategoryReason, NULL, 0
+                           Category, CategoryReason, NULL, 0, LinkCount
                     FROM Files WHERE SessionId = $s AND DirKey = $p
                     ORDER BY {OrderBy(order)}
                     LIMIT $limit OFFSET $offset;
@@ -161,7 +173,8 @@ public sealed partial class SqliteScanStore
                             Identity(reader, 14),
                             reader.IsDBNull(15) ? null : new FileClassification((FileCategory)reader.GetInt32(15), (ClassificationReason)reader.GetInt32(16)),
                             reader.IsDBNull(17) ? null : (DirectoryScanState)reader.GetInt32(17),
-                            reader.GetInt64(18)));
+                            reader.GetInt64(18),
+                            reader.GetInt32(19)));
                     }
                 }
 
@@ -183,10 +196,14 @@ public sealed partial class SqliteScanStore
                 connection =>
                 {
                     using var command = connection.CreateCommand();
+                    // Walks IX_Files_Size from the largest file down, so filters only cost what they skip.
                     command.CommandText = $"""
                         SELECT {FileColumns}, d.RelativePath
-                        FROM Files f JOIN Directories d ON d.SessionId = f.SessionId AND d.DirKey = f.DirKey
-                        WHERE f.SessionId = $s AND f.LogicalSize >= $min {(query.Category is null ? string.Empty : "AND f.Category = $category")}
+                        FROM Files f INDEXED BY IX_Files_Size CROSS JOIN Directories d ON d.SessionId = f.SessionId AND d.DirKey = f.DirKey
+                        WHERE f.SessionId = $s AND f.LogicalSize >= $min
+                            {(query.Category is null ? string.Empty : "AND f.Category = $category")}
+                            {(query.ModifiedBeforeUtc is null ? string.Empty : "AND f.ModifiedTicks < $before")}
+                            {(string.IsNullOrWhiteSpace(query.PathContains) ? string.Empty : "AND instr(lower(d.RelativePath), lower($path)) > 0")}
                         ORDER BY f.LogicalSize DESC
                         LIMIT $limit;
                         """;
@@ -198,11 +215,21 @@ public sealed partial class SqliteScanStore
                         command.Parameters.AddWithValue("$category", (int)category);
                     }
 
+                    if (query.ModifiedBeforeUtc is { } before)
+                    {
+                        command.Parameters.AddWithValue("$before", before.ToFileTimeUtc());
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(query.PathContains))
+                    {
+                        command.Parameters.AddWithValue("$path", query.PathContains.Trim());
+                    }
+
                     var files = new List<IndexEntry>();
                     using var reader = command.ExecuteReader();
                     while (reader.Read())
                     {
-                        files.Add(ReadFile(reader, sessionId, reader.GetString(14)));
+                        files.Add(ReadFile(reader, sessionId, reader.GetString(FileColumnCount)));
                     }
 
                     return files;
@@ -214,19 +241,20 @@ public sealed partial class SqliteScanStore
         return results.OrderByDescending(f => f.LogicalSize).ThenBy(f => f.SessionId).Take(query.Limit).ToList();
     }
 
-    public async Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, string? pathContains, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(sessionIds);
         ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
 
+        var hasPath = !string.IsNullOrWhiteSpace(pathContains);
         var results = new List<IndexEntry>();
         foreach (var sessionId in sessionIds.Distinct())
         {
             results.AddRange(await ReadFoldersAsync(
-                $"SELECT {FolderColumns} FROM Directories INDEXED BY IX_Directories_Size WHERE SessionId = $s AND Depth > 0 ORDER BY TotalAllocatedBytes DESC LIMIT $limit;",
+                $"SELECT {FolderColumns} FROM Directories INDEXED BY IX_Directories_Size WHERE SessionId = $s AND Depth > 0 {(hasPath ? "AND instr(lower(RelativePath), lower($path)) > 0" : string.Empty)} ORDER BY TotalAllocatedBytes DESC LIMIT $limit;",
                 sessionId,
                 cancellationToken,
-                ("$limit", limit)).ConfigureAwait(false));
+                hasPath ? [("$limit", limit), ("$path", pathContains!.Trim())] : [("$limit", limit)]).ConfigureAwait(false));
         }
 
         return results.OrderByDescending(f => f.AllocatedSize).ThenBy(f => f.SessionId).Take(limit).ToList();
@@ -276,6 +304,148 @@ public sealed partial class SqliteScanStore
                 return issues;
             },
             cancellationToken);
+
+    public async Task<SessionComparison> CompareAsync(long olderSessionId, long newerSessionId, int folderLimit, int maxDepth, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(folderLimit, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxDepth, 1);
+
+        var older = await GetSessionAsync(olderSessionId, cancellationToken).ConfigureAwait(false) ?? throw new PersistenceException("The earlier scan no longer exists.");
+        var newer = await GetSessionAsync(newerSessionId, cancellationToken).ConfigureAwait(false) ?? throw new PersistenceException("The later scan no longer exists.");
+
+        var categories = await ReadAsync<IReadOnlyList<CategoryChange>>(
+            connection =>
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    SELECT Category,
+                           SUM(CASE WHEN SessionId = $o THEN FileCount ELSE 0 END), SUM(CASE WHEN SessionId = $o THEN AllocatedBytes ELSE 0 END),
+                           SUM(CASE WHEN SessionId = $n THEN FileCount ELSE 0 END), SUM(CASE WHEN SessionId = $n THEN AllocatedBytes ELSE 0 END)
+                    FROM SessionCategoryTotals WHERE SessionId IN ($o, $n) GROUP BY Category;
+                    """;
+                command.Parameters.AddWithValue("$o", olderSessionId);
+                command.Parameters.AddWithValue("$n", newerSessionId);
+                var changes = new List<CategoryChange>();
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    changes.Add(new CategoryChange((FileCategory)reader.GetInt32(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4)));
+                }
+
+                return changes.OrderByDescending(c => Math.Abs(c.DeltaBytes)).ToList();
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        IReadOnlyList<FolderChange>? folders = null;
+        if (older.HasInventory && newer.HasInventory)
+        {
+            folders = await ReadAsync<IReadOnlyList<FolderChange>>(
+                connection =>
+                {
+                    // Folders are matched by path (IX_Directories_Path); new and removed folders count as growing from or shrinking to nothing.
+                    using var command = connection.CreateCommand();
+                    command.CommandText = """
+                        SELECT Path, Depth, OlderBytes, NewerBytes FROM (
+                            SELECT n.RelativePath AS Path, n.Depth AS Depth, o.TotalAllocatedBytes AS OlderBytes, n.TotalAllocatedBytes AS NewerBytes
+                            FROM Directories n INDEXED BY IX_Directories_Depth
+                            LEFT JOIN Directories o INDEXED BY IX_Directories_Path ON o.SessionId = $o AND o.RelativePath = n.RelativePath
+                            WHERE n.SessionId = $n AND n.Depth BETWEEN 1 AND $depth AND (o.TotalAllocatedBytes IS NULL OR o.TotalAllocatedBytes <> n.TotalAllocatedBytes)
+                            UNION ALL
+                            SELECT o.RelativePath, o.Depth, o.TotalAllocatedBytes, NULL
+                            FROM Directories o INDEXED BY IX_Directories_Depth
+                            WHERE o.SessionId = $o AND o.Depth BETWEEN 1 AND $depth
+                              AND NOT EXISTS (SELECT 1 FROM Directories n INDEXED BY IX_Directories_Path WHERE n.SessionId = $n AND n.RelativePath = o.RelativePath)
+                        )
+                        ORDER BY abs(COALESCE(NewerBytes, 0) - COALESCE(OlderBytes, 0)) DESC, Path
+                        LIMIT $limit;
+                        """;
+                    command.Parameters.AddWithValue("$o", olderSessionId);
+                    command.Parameters.AddWithValue("$n", newerSessionId);
+                    command.Parameters.AddWithValue("$depth", maxDepth);
+                    command.Parameters.AddWithValue("$limit", folderLimit);
+                    var changes = new List<FolderChange>();
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        changes.Add(new FolderChange(
+                            reader.GetString(0),
+                            reader.GetInt32(1),
+                            reader.IsDBNull(2) ? null : reader.GetInt64(2),
+                            reader.IsDBNull(3) ? null : reader.GetInt64(3)));
+                    }
+
+                    return changes;
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return new SessionComparison(older, newer, categories, folders);
+    }
+
+    public async IAsyncEnumerable<IndexEntry> EnumerateEntriesAsync(long sessionId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        // Keyset pages, each read on its own short-lived connection, so no transaction stays open while
+        // the caller writes the export.
+        long lastKey = long.MinValue;
+        while (true)
+        {
+            var page = await ReadFoldersAsync(
+                $"SELECT {FolderColumns} FROM Directories WHERE SessionId = $s AND DirKey > $last ORDER BY DirKey LIMIT $n;",
+                sessionId,
+                cancellationToken,
+                ("$last", lastKey),
+                ("$n", ExportChunk)).ConfigureAwait(false);
+            foreach (var folder in page)
+            {
+                yield return folder;
+            }
+
+            if (page.Count < ExportChunk)
+            {
+                break;
+            }
+
+            lastKey = page[^1].DirectoryKey;
+        }
+
+        long lastId = 0;
+        while (true)
+        {
+            var page = await ReadAsync<IReadOnlyList<IndexEntry>>(
+                connection =>
+                {
+                    using var command = connection.CreateCommand();
+                    command.CommandText = $"""
+                        SELECT {FileColumns}, d.RelativePath
+                        FROM Files f NOT INDEXED JOIN Directories d ON d.SessionId = f.SessionId AND d.DirKey = f.DirKey
+                        WHERE f.Id > $last AND f.SessionId = $s ORDER BY f.Id LIMIT $n;
+                        """;
+                    command.Parameters.AddWithValue("$s", sessionId);
+                    command.Parameters.AddWithValue("$last", lastId);
+                    command.Parameters.AddWithValue("$n", ExportChunk);
+                    var files = new List<IndexEntry>();
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        files.Add(ReadFile(reader, sessionId, reader.GetString(FileColumnCount)));
+                    }
+
+                    return files;
+                },
+                cancellationToken).ConfigureAwait(false);
+            foreach (var file in page)
+            {
+                yield return file;
+            }
+
+            if (page.Count < ExportChunk)
+            {
+                break;
+            }
+
+            lastId = page[^1].FileRowId!.Value;
+        }
+    }
 
     /// <summary>Fixed ORDER BY clauses; user input never reaches the SQL text.</summary>
     private static string OrderBy(EntryOrder order)
@@ -335,7 +505,17 @@ public sealed partial class SqliteScanStore
                         reader.GetInt32(21),
                         reader.GetInt32(22),
                         reader.IsDBNull(23) ? null : reader.GetString(23),
-                        reader.GetInt64(24) != 0));
+                        reader.GetInt64(24) != 0,
+                        (ScanKind)reader.GetInt32(25),
+                        reader.IsDBNull(26) ? null : reader.GetInt64(26),
+                        reader.IsDBNull(27) || reader.IsDBNull(28) ? null : new JournalCheckpoint(unchecked((ulong)reader.GetInt64(27)), reader.GetInt64(28)),
+                        reader.IsDBNull(29) ? null : reader.GetInt64(29),
+                        reader.GetInt32(30),
+                        reader.GetInt64(31),
+                        reader.GetInt64(32),
+                        reader.GetInt64(33),
+                        reader.GetInt64(34),
+                        reader.GetInt64(35)));
                 }
 
                 return sessions;
@@ -358,32 +538,35 @@ public sealed partial class SqliteScanStore
                 using var reader = command.ExecuteReader();
                 while (reader.Read())
                 {
-                    folders.Add(new IndexEntry(
-                        IndexEntryKind.Folder,
-                        sessionId,
-                        reader.GetInt32(0),
-                        null,
-                        reader.GetString(1),
-                        reader.GetString(2),
-                        string.Empty,
-                        reader.GetInt64(3),
-                        reader.GetInt64(4),
-                        reader.GetInt64(5),
-                        reader.GetInt64(6),
-                        Time(reader, 7),
-                        Time(reader, 8),
-                        null,
-                        (FileAttributes)reader.GetInt32(9),
-                        (uint)reader.GetInt64(10),
-                        Identity(reader, 11),
-                        null,
-                        (DirectoryScanState)reader.GetInt32(12),
-                        reader.GetInt64(13)));
+                    folders.Add(ReadFolder(reader, sessionId));
                 }
 
                 return folders;
             },
             cancellationToken);
+
+    /// <summary>Maps <see cref="FolderColumns"/> starting at ordinal 0.</summary>
+    private static IndexEntry ReadFolder(SqliteDataReader reader, long sessionId) => new(
+        IndexEntryKind.Folder,
+        sessionId,
+        reader.GetInt32(0),
+        null,
+        reader.GetString(1),
+        reader.GetString(2),
+        string.Empty,
+        reader.GetInt64(3),
+        reader.GetInt64(4),
+        reader.GetInt64(5),
+        reader.GetInt64(6),
+        Time(reader, 7),
+        Time(reader, 8),
+        null,
+        (FileAttributes)reader.GetInt32(9),
+        (uint)reader.GetInt64(10),
+        Identity(reader, 11),
+        null,
+        (DirectoryScanState)reader.GetInt32(12),
+        reader.GetInt64(13));
 
     /// <summary>Maps <see cref="FileColumns"/> starting at ordinal 0.</summary>
     private static IndexEntry ReadFile(SqliteDataReader reader, long sessionId, string folderPath)
@@ -409,7 +592,8 @@ public sealed partial class SqliteScanStore
             Identity(reader, 11),
             new FileClassification((FileCategory)reader.GetInt32(12), (ClassificationReason)reader.GetInt32(13)),
             null,
-            0);
+            0,
+            reader.GetInt32(14));
     }
 
     private async Task<T> ReadAsync<T>(Func<SqliteConnection, T> read, CancellationToken cancellationToken)

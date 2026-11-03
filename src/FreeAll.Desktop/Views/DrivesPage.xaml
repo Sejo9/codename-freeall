@@ -22,6 +22,14 @@
             <TextBlock Text="Scan default drives" />
           </StackPanel>
         </Button>
+        <Button Margin="8,0,0,0"
+                Command="{Binding UpdateDefaultDrivesCommand}"
+                ToolTip="Re-reads only the folders that changed since the last scan of each drive, using the drive's change journal. Runs a full scan when that isn't possible, and says why.">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE895;" />
+            <TextBlock Text="Update default drives" />
+          </StackPanel>
+        </Button>
         <Button Margin="8,0,0,0" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh drive list">
           <StackPanel Orientation="Horizontal">
             <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
@@ -189,6 +197,15 @@
                             Content="Scan"
                             DockPanel.Dock="Right"
                             Visibility="{Binding CanScan, Converter={StaticResource BoolToVisibility}}" />
+                    <Button Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="{Binding ShortName, StringFormat='Update {0} from its change journal'}"
+                            Command="{Binding DataContext.UpdateDriveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}"
+                            Content="Update"
+                            DockPanel.Dock="Right"
+                            ToolTip="Re-read only what changed since the last scan"
+                            Visibility="{Binding CanUpdate, Converter={StaticResource BoolToVisibility}}" />
                     <DockPanel VerticalAlignment="Center">
                       <TextBlock Margin="0,1,6,0" VerticalAlignment="Top" DockPanel.Dock="Left" FontSize="12">
                         <TextBlock.Style>

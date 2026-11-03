@@ -1,6 +1,20 @@
 namespace FreeAll.Scanner.Enumeration;
 
 /// <summary>A directory found in its parent's listing and waiting to be listed itself.</summary>
+/// <param name="Key">Directory key in the session.</param>
+/// <param name="ParentKey">Parent's key, or null for the scan root.</param>
+/// <param name="Name">Name.</param>
+/// <param name="RelativePath">Volume-relative path.</param>
+/// <param name="Depth">Depth below the scan root.</param>
+/// <param name="Attributes">Attributes from the parent's listing.</param>
+/// <param name="FileId">File-system identity, when known.</param>
+/// <param name="CreatedUtc">Creation time from the parent's listing.</param>
+/// <param name="ModifiedUtc">Last-write time from the parent's listing.</param>
+/// <param name="ReparseTag">Reparse tag of a listed cloud folder (BLK-017), otherwise 0.</param>
+/// <param name="IsRelist">
+/// True for a folder already in the baseline that an incremental update lists again: its known
+/// subfolders are kept rather than scanned, and its metadata is read from its own handle.
+/// </param>
 internal sealed record PendingDirectory(
     int Key,
     int? ParentKey,
@@ -10,7 +24,9 @@ internal sealed record PendingDirectory(
     FileAttributes Attributes,
     UInt128? FileId,
     DateTime? CreatedUtc,
-    DateTime? ModifiedUtc);
+    DateTime? ModifiedUtc,
+    uint ReparseTag = 0,
+    bool IsRelist = false);
 
 /// <summary>
 /// Directories waiting to be listed, shared by the scan workers. Last in, first out, so traversal is

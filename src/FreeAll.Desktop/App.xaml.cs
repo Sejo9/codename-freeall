@@ -99,6 +99,11 @@ internal partial class App : System.Windows.Application
 
         var shell = _services.GetRequiredService<ShellViewModel>();
         shell.RefreshStatus();
+        if (database.Health.IsReady)
+        {
+            // The header shows how many items are waiting for review before the page is opened.
+            _ = _services.GetRequiredService<ViewModels.Index.ReviewQueueViewModel>().InitializeAsync();
+        }
 
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;

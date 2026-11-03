@@ -71,7 +71,12 @@ public readonly record struct ScannedFile(
 /// <param name="Kind">Category.</param>
 public sealed record ScanIssue(int? DirectoryKey, string RelativePath, string Operation, int ErrorCode, ScanIssueKind Kind);
 
-/// <summary>A bounded group of scan records passed from the scanner to persistence.</summary>
+/// <summary>
+/// A bounded group of scan records passed from the scanner to persistence. Persistence applies the
+/// lists in a fixed order: <see cref="RemovedDirectories"/>, <see cref="ClearedDirectories"/>,
+/// <see cref="Directories"/> (insert or replace), <see cref="Files"/>, <see cref="Issues"/>, then
+/// <see cref="StaleDirectories"/>. The first two and the last are used only by incremental updates.
+/// </summary>
 public sealed class ScanBatch
 {
     public ScanBatch(int capacity = 0)
@@ -85,5 +90,14 @@ public sealed class ScanBatch
 
     public List<ScanIssue> Issues { get; } = [];
 
-    public int Count => Directories.Count + Files.Count + Issues.Count;
+    /// <summary>Directories (with everything below them) that no longer exist and are removed from the index.</summary>
+    public List<int> RemovedDirectories { get; } = [];
+
+    /// <summary>Directories being listed again: their file rows are removed before the new ones are written.</summary>
+    public List<int> ClearedDirectories { get; } = [];
+
+    /// <summary>Directories that should have been listed again but weren't (the update stopped); marked incomplete.</summary>
+    public List<int> StaleDirectories { get; } = [];
+
+    public int Count => Directories.Count + Files.Count + Issues.Count + RemovedDirectories.Count + ClearedDirectories.Count + StaleDirectories.Count;
 }

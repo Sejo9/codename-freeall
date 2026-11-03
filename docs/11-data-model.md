@@ -44,6 +44,8 @@ justified by measured overhead.
   `ScanErrors`           Error details and scan provenance
   `UserPreferences`      User configuration
   `SchemaMigrations`     Applied schema migration history
+  `SearchIndexes`        Per-session name search index registry (TD-027)
+  `ReviewItems`          Items set aside in the review queue (TD-029)
 
 ## 4. Key design rules
 
@@ -82,8 +84,9 @@ algorithm/version change. - Uncertain filesystem state.
 
 ## 7. Retention
 
--   Scan history retention is user-configurable, with conservative
-    defaults to be finalized.
+-   Scan history retention is user-configurable (Settings → Scan
+    history, TD-030). Defaults keep every scan summary and the detailed
+    results of the newest scan, plus the newest complete one, per drive.
 -   Quarantine content is never auto-purged.
 -   User decisions and exclusions should survive ordinary upgrades.
 -   Uninstall must ask whether to retain or remove user data.

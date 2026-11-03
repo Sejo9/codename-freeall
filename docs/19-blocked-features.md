@@ -2,9 +2,14 @@
 
 ## Current blockers
 
-One product question is open: BLK-017 (folders that are cloud
-placeholders, such as OneDrive Files On-Demand). It does not block
-development; the current behaviour follows PR-003 as written.
+No product question is open. BLK-017 was resolved on 2026-11-03
+(DEC-029).
+
+Two manual checks need hands on a physical PC and can't be done by the
+development agent: changing a drive letter (needs administrator rights)
+and unplugging a USB drive during a scan. The procedure is in
+`12-quality-assurance.md` §3.1; the automated parts are covered (see
+F-007 in `17-feature-checklist.md`).
 
 ## Technical validation queue
 
@@ -28,8 +33,8 @@ development; the current behaviour follows PR-003 as written.
   BLK-004        WPF data       Large file/directory  Virtualized prototype with  RESOLVED
                  controls       result performance    representative data         
 
-  BLK-005        Chart and      Rendering large       Prototype, accessibility    OPEN
-                 treemap        datasets              and performance review      
+  BLK-005        Chart and      Rendering large       Prototype, accessibility    RESOLVED
+                 treemap        datasets              and performance review      (TD-031)
 
   BLK-006        WPF Fluent     Theme completeness    .NET 10 theme audit and     IN PROGRESS
                  theme          and stability         fallback styles             
@@ -44,6 +49,23 @@ development; the current behaviour follows PR-003 as written.
   BLK-009        Performance    Must be based on real Benchmark baseline and      IN PROGRESS
                  targets        hardware              proposed SLOs               
   ----------------------------------------------------------------------------------------------
+
+## Validation evidence (Phase 3, 2026-11-03)
+
+### BLK-005 --- Chart and treemap: RESOLVED (TD-031)
+
+Custom WPF controls, no third-party library (so no licence question
+under DEC-024). The treemap draws at most 150 + 24 × 30 tiles, all from
+bounded queries, so drawing cost does not depend on folder size; on the
+1M-file C: index the first level appears from one indexed query. Every
+tile carries text, the list view is the table alternative, and the
+colours passed the data-visualization palette checker in light and dark.
+Narrator review is still part of BLK-006.
+
+### BLK-009 --- Performance targets: IN PROGRESS (second baseline)
+
+Phase 3 measurements (incremental update, search, finishing step) are in
+`18-development-log.md`. Still one machine and one drive; no target set.
 
 ## Validation evidence (Phase 2, 2026-11-03)
 
@@ -117,7 +139,10 @@ review of dialogs, context menus and tooltips as those screens arrive.
 
 ### BLK-017 --- Cloud placeholder folders (OneDrive Files On-Demand)
 
--   **Status:** OPEN (opened 2026-11-03)
+-   **Status:** RESOLVED → DEC-029 (2026-11-03). The product owner chose
+    the recommendation: list cloud folders, never follow links, label
+    cloud-only files with their real (often zero) space on disk.
+-   **Opened:** 2026-11-03
 -   **Affected features:** F-009, F-012, F-013; PR-002, PR-003
 -   **Question:** With OneDrive Files On-Demand (and other cloud sync
     clients), synced folders are reparse points with a cloud tag. PR-003

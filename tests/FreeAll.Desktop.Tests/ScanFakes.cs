@@ -1,11 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Export;
 using FreeAll.Application.Scanning;
 using FreeAll.Core.Classification;
 using FreeAll.Core.Scanning;
+using FreeAll.Cleanup.Review;
 using FreeAll.Core.Volumes;
 using FreeAll.Desktop.Services;
+using FreeAll.Infrastructure.Export;
 using FreeAll.Desktop.ViewModels;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -59,7 +62,23 @@ internal sealed class FakeScanStore : IScanStore
 
     public Task<int> RecoverInterruptedSessionsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 
-    public Task<int> PruneInventoriesAsync(VolumeId volume, CancellationToken cancellationToken) => Task.FromResult(0);
+    public List<RetentionPolicy> Retentions { get; } = [];
+
+    public Task<int> PruneInventoriesAsync(VolumeId volume, RetentionPolicy policy, CancellationToken cancellationToken) => Task.FromResult(0);
+
+    public Task<int> ApplyRetentionAsync(RetentionPolicy policy, CancellationToken cancellationToken)
+    {
+        Retentions.Add(policy);
+        return Task.FromResult(1);
+    }
+
+    public Task<ScanSessionSummary?> GetUpdateBaseAsync(VolumeId volume, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public IScanBaseline OpenBaseline(long sessionId) => throw new NotSupportedException();
+
+    public Task CopyInventoryAsync(long fromSessionId, long toSessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task BuildSearchIndexAsync(long sessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>
@@ -153,10 +172,50 @@ internal sealed class FakeScanIndex : IScanIndex
             .ToList());
     }
 
-    public Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, string? pathContains, CancellationToken cancellationToken)
     {
         FolderQueries++;
-        return Result<IReadOnlyList<IndexEntry>>(Folders.Where(f => f.DirectoryKey != 1).OrderByDescending(f => f.AllocatedSize).Take(limit).ToList());
+        FolderPaths.Add(pathContains);
+        return Result<IReadOnlyList<IndexEntry>>(Folders
+            .Where(f => f.DirectoryKey != 1 && (pathContains is null || f.RelativePath.Contains(pathContains, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(f => f.AllocatedSize).Take(limit).ToList());
+    }
+
+    public List<string?> FolderPaths { get; } = [];
+
+    public List<SearchQuery> Searches { get; } = [];
+
+    public List<(long Older, long Newer)> Comparisons { get; } = [];
+
+    public Task<SearchResult> SearchAsync(SearchQuery query, CancellationToken cancellationToken)
+    {
+        Searches.Add(query);
+        var words = SearchText.Words(query.Text);
+        var matches = Folders.Where(f => f.DirectoryKey != 1).Concat(Files)
+            .Where(e => query.Scope switch { SearchScope.Files => !e.IsFolder, SearchScope.Folders => e.IsFolder, _ => true })
+            .Where(e => words.Count > 0 && words.All(w => e.Name.Contains(w, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        return Result(new SearchResult(matches.OrderByDescending(e => e.LogicalSize).Take(query.Limit).ToList(), matches.Count, []));
+    }
+
+    public Task<SessionComparison> CompareAsync(long olderSessionId, long newerSessionId, int folderLimit, int maxDepth, CancellationToken cancellationToken)
+    {
+        Comparisons.Add((olderSessionId, newerSessionId));
+        return Result(new SessionComparison(
+            Sessions.First(s => s.Id == olderSessionId),
+            Sessions.First(s => s.Id == newerSessionId),
+            [new CategoryChange(FileCategory.Images, 1000, 500_000_000, 1200, 750_000_000)],
+            [new FolderChange(@"\Photos", 1, 500_000_000, 750_000_000), new FolderChange(@"\Old", 1, 10_000, null)]));
+    }
+
+    public async IAsyncEnumerable<IndexEntry> EnumerateEntriesAsync(long sessionId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        foreach (var entry in Folders.Concat(Files))
+        {
+            yield return entry;
+        }
+
+        await Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<CategoryTotal>> GetCategoryTotalsAsync(long sessionId, CancellationToken cancellationToken) =>
@@ -263,6 +322,79 @@ internal sealed class FakeNavigator : INavigator
         Largest.Add((sessionId, category));
         return Task.CompletedTask;
     }
+
+    public List<string> Searches { get; } = [];
+
+    public Task ShowSearchAsync(string text)
+    {
+        Searches.Add(text);
+        return Task.CompletedTask;
+    }
+
+    public void ShowReviewQueue() => Visited.Add("review");
+}
+
+internal sealed class FakeVolumeMonitor : IVolumeChangeMonitor
+{
+    public event EventHandler? VolumesChanged;
+
+    public void Raise() => VolumesChanged?.Invoke(this, EventArgs.Empty);
+}
+
+internal sealed class FakeReviewQueueStore : IReviewQueueStore
+{
+    private long _nextId;
+
+    public List<ReviewItem> Items { get; } = [];
+
+    public Task<IReadOnlyList<ReviewItem>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ReviewItem>>(Items.ToList());
+
+    public Task<int> AddAsync(IReadOnlyList<ReviewItem> items, CancellationToken cancellationToken)
+    {
+        var added = 0;
+        foreach (var item in items.Where(i => !Items.Any(x => x.Volume == i.Volume && string.Equals(x.RelativePath, i.RelativePath, StringComparison.OrdinalIgnoreCase))))
+        {
+            Items.Add(item with { Id = ++_nextId });
+            added++;
+        }
+
+        return Task.FromResult(added);
+    }
+
+    public Task RemoveAsync(IReadOnlyCollection<long> ids, CancellationToken cancellationToken)
+    {
+        Items.RemoveAll(i => ids.Contains(i.Id));
+        return Task.CompletedTask;
+    }
+
+    public Task ClearAsync(CancellationToken cancellationToken)
+    {
+        Items.Clear();
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class FakeSaveDialog : IFileSaveDialog
+{
+    public string? Path { get; set; }
+
+    public ExportFormat Format { get; set; } = ExportFormat.Csv;
+
+    public (string Path, ExportFormat Format)? Ask(string title, string suggestedName, IReadOnlyList<ExportFormat> formats) =>
+        Path is null ? null : (Path, Format);
+}
+
+internal sealed class FakeConfirmation : IConfirmation
+{
+    public bool Answer { get; set; } = true;
+
+    public int Asked { get; private set; }
+
+    public bool Confirm(string title, string message, string action)
+    {
+        Asked++;
+        return Answer;
+    }
 }
 
 internal static class TestServices
@@ -270,6 +402,9 @@ internal static class TestServices
     public static ScanActivityViewModel Activity(FakeScanCoordinator? coordinator = null, FakeNotifier? notifier = null) =>
         new(coordinator ?? new FakeScanCoordinator(), new ImmediateUiDispatcher(), notifier ?? new FakeNotifier());
 
-    public static Desktop.ViewModels.Index.EntryActions Actions(FakeShellLauncher? shell = null, FakeClipboard? clipboard = null, FakeNotifier? notifier = null) =>
-        new(shell ?? new FakeShellLauncher(), clipboard ?? new FakeClipboard(), notifier ?? new FakeNotifier(), NullLogger<Desktop.ViewModels.Index.EntryActions>.Instance);
+    public static Desktop.ViewModels.Index.EntryActions Actions(FakeShellLauncher? shell = null, FakeClipboard? clipboard = null, FakeNotifier? notifier = null, ReviewQueueService? review = null) =>
+        new(shell ?? new FakeShellLauncher(), clipboard ?? new FakeClipboard(), notifier ?? new FakeNotifier(), NullLogger<Desktop.ViewModels.Index.EntryActions>.Instance, review);
+
+    public static ExportActions Export(FakeSaveDialog dialog, FakeNotifier? notifier = null) =>
+        new(new ReportExporter(), dialog, notifier ?? new FakeNotifier(), NullLogger<ExportActions>.Instance);
 }

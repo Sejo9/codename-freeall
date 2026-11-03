@@ -1,12 +1,17 @@
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Export;
+using FreeAll.Application.Preferences;
 using FreeAll.Application.Scanning;
+using FreeAll.Cleanup.Review;
 using FreeAll.Core.Diagnostics;
 using FreeAll.Desktop.Services;
 using FreeAll.Desktop.ViewModels;
 using FreeAll.Desktop.ViewModels.Index;
+using FreeAll.Infrastructure.Export;
 using FreeAll.Infrastructure.Persistence;
 using FreeAll.Infrastructure.Persistence.Migrations;
 using FreeAll.Scanner.Enumeration;
+using FreeAll.Scanner.Journal;
 using FreeAll.Scanner.Volumes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,12 +43,19 @@ internal static class ServiceConfiguration
         services.AddSingleton<IScanStore>(sp => sp.GetRequiredService<SqliteScanStore>());
         services.AddSingleton<IScanIndex>(sp => sp.GetRequiredService<SqliteScanStore>());
         services.AddSingleton<IScanExclusionStore, SqliteExclusionStore>();
+        services.AddSingleton<IChangeJournal, UsnChangeJournal>();
+        services.AddSingleton<IRetentionSettings, RetentionSettings>();
+        services.AddSingleton<IReviewQueueStore, SqliteReviewQueueStore>();
+        services.AddSingleton<ReviewQueueService>();
+        services.AddSingleton<IReportExporter, ReportExporter>();
         services.AddSingleton(ScanOptions.Default);
         services.AddSingleton(sp => new ScanCoordinator(
             sp.GetRequiredService<IVolumeScanner>(),
+            sp.GetRequiredService<IChangeJournal>(),
             sp.GetRequiredService<IScanStore>(),
             sp.GetRequiredService<IScanExclusionStore>(),
             sp.GetRequiredService<IAppDatabase>(),
+            sp.GetRequiredService<IRetentionSettings>(),
             sp.GetRequiredService<ScanOptions>(),
             sp.GetRequiredService<ILogger<ScanCoordinator>>()));
         services.AddSingleton<IScanCoordinator>(sp => sp.GetRequiredService<ScanCoordinator>());
@@ -57,9 +69,16 @@ internal static class ServiceConfiguration
         services.AddSingleton<IShellLauncher, ExplorerShellLauncher>();
         services.AddSingleton<IClipboardService, WpfClipboardService>();
         services.AddSingleton<IFolderPicker, WpfFolderPicker>();
+        services.AddSingleton(_ => new WindowMessageVolumeMonitor(application.Dispatcher));
+        services.AddSingleton<IVolumeChangeMonitor>(sp => sp.GetRequiredService<WindowMessageVolumeMonitor>());
         services.AddSingleton<INavigator>(sp => sp.GetRequiredService<ShellViewModel>());
         services.AddSingleton<ScanActivityViewModel>();
         services.AddSingleton<EntryActions>();
+        services.AddSingleton<IFileSaveDialog, WpfFileSaveDialog>();
+        services.AddSingleton<IConfirmation, MessageBoxConfirmation>();
+        services.AddSingleton<ExportActions>();
+        services.AddSingleton<SearchViewModel>();
+        services.AddSingleton<ReviewQueueViewModel>();
 
         // Pages and shell
         services.AddTransient<DrivesViewModel>();
@@ -72,7 +91,9 @@ internal static class ServiceConfiguration
             CreateNavigation(sp),
             sp.GetRequiredService<IAppDatabase>(),
             sp.GetRequiredService<ScanActivityViewModel>(),
-            sp.GetRequiredService<ILogger<ShellViewModel>>()));
+            sp.GetRequiredService<ILogger<ShellViewModel>>(),
+            sp.GetRequiredService<SearchViewModel>,
+            sp.GetRequiredService<ReviewQueueViewModel>));
         services.AddSingleton<MainWindow>();
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

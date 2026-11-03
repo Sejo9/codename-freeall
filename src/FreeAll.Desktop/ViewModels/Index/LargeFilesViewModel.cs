@@ -1,10 +1,13 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Export;
 using FreeAll.Application.Formatting;
 using FreeAll.Application.Scanning;
 using FreeAll.Core.Classification;
+using FreeAll.Core.Review;
 using FreeAll.Desktop.Services;
 using Microsoft.Extensions.Logging;
 
@@ -12,31 +15,51 @@ namespace FreeAll.Desktop.ViewModels.Index;
 
 internal sealed record FilterOption<T>(T Value, string Label);
 
-/// <summary>Largest files and folders across the latest scans (F-016). Results are top-N queries, never whole tables.</summary>
+/// <summary>
+/// Largest files and folders across the latest scans (F-016), with size, category, age and folder-path
+/// filters. Results are top-N queries, never whole tables. Size alone never means safe to remove (PR-007).
+/// </summary>
 internal sealed partial class LargeFilesViewModel : PageViewModel
 {
     public const int Limit = 500;
 
+    /// <summary>Marks the "custom size" choice; the size then comes from <see cref="CustomMinimumMegabytes"/>.</summary>
+    public const long CustomSize = -1;
+
     private readonly IScanIndex _index;
     private readonly EntryActions _actions;
+    private readonly ExportActions? _export;
     private readonly INavigator _navigator;
     private readonly ILogger<LargeFilesViewModel> _logger;
+    private readonly TimeProvider _time;
     private bool _loaded;
     private bool _suspendQuery;
     private int _operation;
+    private IReadOnlyList<IndexRowViewModel> _selection = [];
 
-    public LargeFilesViewModel(IScanIndex index, ScanActivityViewModel activity, EntryActions actions, INavigator navigator, ILogger<LargeFilesViewModel> logger)
+    public LargeFilesViewModel(
+        IScanIndex index,
+        ScanActivityViewModel activity,
+        EntryActions actions,
+        INavigator navigator,
+        ILogger<LargeFilesViewModel> logger,
+        ExportActions? export = null,
+        TimeProvider? time = null)
     {
         _index = index;
         _actions = actions;
+        _export = export;
         _navigator = navigator;
         _logger = logger;
+        _time = time ?? TimeProvider.System;
         State = PageState.NotLoaded;
         Categories = [new(null, "All categories"), .. Enum.GetValues<FileCategory>().Select(c => new FilterOption<FileCategory?>(c, ScanText.Category(c))).OrderBy(o => o.Label, StringComparer.CurrentCulture)];
         _suspendQuery = true;
         SelectedCategory = Categories[0];
         SelectedMinimumSize = MinimumSizes[2];
+        SelectedAge = Ages[0];
         SelectedMode = Modes[0];
+        CustomMinimumMegabytes = "50";
         _suspendQuery = false;
         activity.RunFinished += (_, _) => _loaded = false;
     }
@@ -55,7 +78,20 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
         new(1L << 20, "1 MB or more"),
         new(10L << 20, "10 MB or more"),
         new(100L << 20, "100 MB or more"),
+        new(500L << 20, "500 MB or more"),
         new(1L << 30, "1 GB or more"),
+        new(10L << 30, "10 GB or more"),
+        new(CustomSize, "Custom size…"),
+    ];
+
+    /// <summary>Days since last modified. Modified times can be copied or unreliable, so this is a hint, not proof of disuse.</summary>
+    public IReadOnlyList<FilterOption<int>> Ages { get; } =
+    [
+        new(0, "Modified any time"),
+        new(30, "Not modified in 30 days"),
+        new(90, "Not modified in 3 months"),
+        new(365, "Not modified in a year"),
+        new(730, "Not modified in 2 years"),
     ];
 
     public IReadOnlyList<FilterOption<bool>> Modes { get; } = [new(false, "Files"), new(true, "Folders")];
@@ -75,7 +111,21 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
     public partial FilterOption<FileCategory?> SelectedCategory { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCustomSize))]
     public partial FilterOption<long> SelectedMinimumSize { get; set; }
+
+    public bool IsCustomSize => SelectedMinimumSize.Value == CustomSize;
+
+    /// <summary>Custom minimum size in megabytes, as typed.</summary>
+    [ObservableProperty]
+    public partial string CustomMinimumMegabytes { get; set; }
+
+    [ObservableProperty]
+    public partial FilterOption<int> SelectedAge { get; set; }
+
+    /// <summary>Only items whose folder path contains this text.</summary>
+    [ObservableProperty]
+    public partial string? PathFilter { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsFolders))]
@@ -84,8 +134,12 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
     public bool ShowsFolders => SelectedMode.Value;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RevealCommand), nameof(CopyPathCommand), nameof(ShowInExplorerCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RevealCommand), nameof(ShowInExplorerCommand))]
     public partial IndexRowViewModel? SelectedRow { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CopyPathCommand), nameof(AddToReviewCommand))]
+    public partial bool HasSelection { get; private set; }
 
     [ObservableProperty]
     public partial EntryDetailsViewModel? Details { get; private set; }
@@ -96,8 +150,13 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
     [ObservableProperty]
     public partial string? ResultText { get; private set; }
 
+    [ObservableProperty]
+    public partial string? StatusMessage { get; private set; }
+
     /// <summary>Completes when the most recent query has finished. Exposed for tests.</summary>
     internal Task PendingQuery { get; private set; } = Task.CompletedTask;
+
+    internal IReadOnlyList<IndexRowViewModel> Selection => _selection;
 
     public override Task OnNavigatedToAsync(CancellationToken cancellationToken) => _loaded ? Task.CompletedTask : ReloadAsync();
 
@@ -113,9 +172,18 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
         SelectedDrive = Drives.FirstOrDefault(d => d.Value?.Session.Id == sessionId) ?? SelectedDrive;
         SelectedCategory = Categories.First(c => c.Value == category);
         SelectedMinimumSize = MinimumSizes[0];
+        SelectedAge = Ages[0];
+        PathFilter = null;
         SelectedMode = Modes[0];
         _suspendQuery = false;
         await (PendingQuery = QueryAsync());
+    }
+
+    /// <summary>Called by the view when the grid selection changes.</summary>
+    public void SetSelection(IReadOnlyList<IndexRowViewModel> rows)
+    {
+        _selection = rows;
+        HasSelection = rows.Count > 0;
     }
 
     [RelayCommand]
@@ -146,11 +214,17 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
         }
     }
 
+    /// <summary>Applies the path and custom size text (typed fields apply on Enter or this command, not per keystroke).</summary>
+    [RelayCommand]
+    private Task ApplyFiltersAsync() => PendingQuery = QueryAsync();
+
     partial void OnSelectedDriveChanged(FilterOption<SessionOption?>? value) => Requery();
 
     partial void OnSelectedCategoryChanged(FilterOption<FileCategory?> value) => Requery();
 
     partial void OnSelectedMinimumSizeChanged(FilterOption<long> value) => Requery();
+
+    partial void OnSelectedAgeChanged(FilterOption<int> value) => Requery();
 
     partial void OnSelectedModeChanged(FilterOption<bool> value) => Requery();
 
@@ -164,12 +238,31 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
         }
     }
 
+    /// <summary>The minimum size in bytes, or null when the custom value isn't a number.</summary>
+    internal long? MinimumBytes()
+    {
+        if (!IsCustomSize)
+        {
+            return SelectedMinimumSize.Value;
+        }
+
+        return double.TryParse(CustomMinimumMegabytes, NumberStyles.Float, CultureInfo.CurrentCulture, out var megabytes) && megabytes is >= 0 and < 1e9
+            ? (long)(megabytes * (1 << 20))
+            : null;
+    }
+
+    private DateTime? ModifiedBefore() => SelectedAge.Value == 0 ? null : _time.GetUtcNow().UtcDateTime.AddDays(-SelectedAge.Value);
+
+    private string? PathText() => string.IsNullOrWhiteSpace(PathFilter) ? null : PathFilter.Trim();
+
+    private List<ScanSessionSummary> SessionsInScope() => SelectedDrive?.Value is { } one
+        ? [one.Session]
+        : Drives.Where(d => d.Value is not null).Select(d => d.Value!.Session).ToList();
+
     private async Task QueryAsync()
     {
         var operation = ++_operation;
-        var sessions = SelectedDrive?.Value is { } one
-            ? [one.Session]
-            : Drives.Where(d => d.Value is not null).Select(d => d.Value!.Session).ToList();
+        var sessions = SessionsInScope();
         if (sessions.Count == 0)
         {
             Results.Clear();
@@ -177,13 +270,20 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
             return;
         }
 
+        if ((ShowsFolders ? 0 : MinimumBytes()) is not { } minimum)
+        {
+            ResultText = "Enter the custom size as a number of megabytes, for example 250.";
+            return;
+        }
+
         IsBusy = true;
         try
         {
             var ids = sessions.Select(s => s.Id).ToList();
+            var path = PathText();
             var entries = ShowsFolders
-                ? await _index.GetLargestFoldersAsync(ids, Limit, CancellationToken.None)
-                : await _index.GetLargestFilesAsync(new LargeFileQuery(ids, SelectedCategory.Value, SelectedMinimumSize.Value, Limit), CancellationToken.None);
+                ? await _index.GetLargestFoldersAsync(ids, Limit, path, CancellationToken.None)
+                : await _index.GetLargestFilesAsync(new LargeFileQuery(ids, SelectedCategory.Value, minimum, Limit, ModifiedBefore(), path), CancellationToken.None);
             if (operation != _operation)
             {
                 return;
@@ -216,19 +316,61 @@ internal sealed partial class LargeFilesViewModel : PageViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
+    [RelayCommand(CanExecute = nameof(HasCurrent))]
     private void Reveal() => _actions.Reveal(SelectedRow!.FullPath);
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void CopyPath() => _actions.CopyPath(SelectedRow!.FullPath);
+    private void CopyPath() => _actions.CopyPaths(_selection);
+
+    [RelayCommand(CanExecute = nameof(HasCurrent))]
+    private Task ShowInExplorerAsync() => _navigator.ShowFolderAsync(SelectedRow!.Session.Id, SelectedRow.Entry.DirectoryKey);
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
-    private Task ShowInExplorerAsync() => _navigator.ShowFolderAsync(SelectedRow!.Session.Id, SelectedRow.Entry.DirectoryKey);
+    private async Task AddToReviewAsync() => StatusMessage = await _actions.AddToReviewAsync(_selection, ReviewOrigin.LargeFiles);
+
+    [RelayCommand]
+    private async Task ExportAsync()
+    {
+        if (_export is null)
+        {
+            return;
+        }
+
+        var rows = Results.ToList();
+        var sessions = rows.Select(r => r.Session).DistinctBy(s => s.Id).ToList();
+        var description = $"Large Files: {DescribeFilters()} ({rows.Count:N0} shown)";
+        StatusMessage = await _export.ExportAsync("Export the list shown", "FreeAll large files", _ => new ExportReport(
+            ShowsFolders ? "Largest folders" : "Largest files",
+            ExportScope.CurrentView,
+            description,
+            _export.UtcNow,
+            sessions.Select(s => ExportProvenance.From(s, SessionOption.DriveName(s))).ToList(),
+            [],
+            [ExportTables.Entries(ShowsFolders ? "Folders" : "Files", rows.Select(r => r.Entry), sessions.ToDictionary(s => s.Id), "Size alone doesn't mean an item is safe to remove.")])) ?? StatusMessage;
+    }
+
+    private string DescribeFilters()
+    {
+        var parts = new List<string> { ShowsFolders ? "folders" : "files", SelectedDrive?.Label ?? "All drives" };
+        if (!ShowsFolders)
+        {
+            parts.Add(SelectedCategory.Label);
+            parts.Add(IsCustomSize ? $"{CustomMinimumMegabytes} MB or more" : SelectedMinimumSize.Label);
+            parts.Add(SelectedAge.Label);
+        }
+
+        if (PathText() is { } path)
+        {
+            parts.Add($"folder path contains \"{path}\"");
+        }
+
+        return string.Join(", ", parts);
+    }
 
     [RelayCommand]
     private void GoToDrives() => _navigator.NavigateTo("drives");
 
-    private bool HasSelection() => SelectedRow is not null;
+    private bool HasCurrent() => SelectedRow is not null;
 
     private void Fail(PersistenceException ex)
     {

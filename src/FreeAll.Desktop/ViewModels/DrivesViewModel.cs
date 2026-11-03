@@ -38,6 +38,7 @@ internal sealed partial class DrivesViewModel : PageViewModel
         IFolderPicker folderPicker,
         IUserNotifier notifier,
         ScanActivityViewModel activity,
+        IVolumeChangeMonitor volumeChanges,
         ILogger<DrivesViewModel> logger)
     {
         _discovery = discovery;
@@ -59,6 +60,15 @@ internal sealed partial class DrivesViewModel : PageViewModel
             }
         };
         activity.RunFinished += (_, _) => PendingLoad = LoadScanStateAsync();
+
+        // A drive was plugged in, removed or given another letter: refresh once the page has been shown.
+        volumeChanges.VolumesChanged += (_, _) =>
+        {
+            if (State is PageState.Ready or PageState.Error)
+            {
+                PendingRefresh = RefreshCommand.ExecuteAsync(null);
+            }
+        };
     }
 
     public override string Title => "Drives";
@@ -89,6 +99,9 @@ internal sealed partial class DrivesViewModel : PageViewModel
 
     /// <summary>Completes when the most recent load of scan state and exclusions has finished. Exposed for tests.</summary>
     internal Task PendingLoad { get; private set; } = Task.CompletedTask;
+
+    /// <summary>Completes when a refresh started by a device change has finished. Exposed for tests.</summary>
+    internal Task PendingRefresh { get; private set; } = Task.CompletedTask;
 
     public override Task OnNavigatedToAsync(CancellationToken cancellationToken) =>
         State == PageState.NotLoaded ? RefreshAsync(cancellationToken) : Task.CompletedTask;
@@ -160,6 +173,17 @@ internal sealed partial class DrivesViewModel : PageViewModel
 
     private bool CanScanDrive(DriveItemViewModel? drive) => !Activity.IsRunning && drive is { CanScan: true };
 
+    /// <summary>Updates the default drives from their change journals; each falls back to a full scan when it must.</summary>
+    [RelayCommand(CanExecute = nameof(CanScanDefault))]
+    private Task UpdateDefaultDrivesAsync() =>
+        Activity.StartAsync(Drives.Where(d => d.IsIncludedByDefault).Select(d => ScanTarget.WholeVolume(d.Volume, ScanKind.Incremental)).ToList());
+
+    [RelayCommand(CanExecute = nameof(CanUpdateDrive))]
+    private Task UpdateDriveAsync(DriveItemViewModel? drive) =>
+        drive is null ? Task.CompletedTask : Activity.StartAsync([ScanTarget.WholeVolume(drive.Volume, ScanKind.Incremental)]);
+
+    private bool CanUpdateDrive(DriveItemViewModel? drive) => !Activity.IsRunning && drive is { CanScan: true, CanUpdate: true };
+
     [RelayCommand]
     private async Task AddExclusionAsync()
     {
@@ -225,6 +249,8 @@ internal sealed partial class DrivesViewModel : PageViewModel
                 drive.SetLastScan(latest.GetValueOrDefault(drive.Volume.Id));
             }
 
+            NotifyScanCommands();
+
             var exclusions = await _exclusions.GetAllAsync(CancellationToken.None);
             Exclusions.Clear();
             foreach (var exclusion in exclusions)
@@ -256,14 +282,18 @@ internal sealed partial class DrivesViewModel : PageViewModel
             1 => "1 excluded folder",
             var n => $"{n} excluded folders",
         };
-        ScopeText = $"Default scan: {string.Join(", ", included)}, {exclusions}. Links and other reparse points are not followed. "
-            + "Scans run with your permissions, and folders you can't open are reported as errors. Scanning only reads; it never changes files.";
+        ScopeText = $"Default scan: {string.Join(", ", included)}, {exclusions}. Links (junctions, symbolic links, mount points) are not followed. "
+            + "Cloud folders such as OneDrive are listed, which may make the sync app fetch folder listings; files are never downloaded. "
+            + "Scans run with your permissions, and folders you can't open are reported as errors. Scanning only reads; it never changes files. "
+            + "Update re-reads only folders the drive's change journal reports as changed, and runs a full scan when that history can't be trusted.";
     }
 
     private void NotifyScanCommands()
     {
         ScanDefaultDrivesCommand.NotifyCanExecuteChanged();
         ScanDriveCommand.NotifyCanExecuteChanged();
+        UpdateDefaultDrivesCommand.NotifyCanExecuteChanged();
+        UpdateDriveCommand.NotifyCanExecuteChanged();
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Drive discovery failed")]
@@ -387,8 +417,13 @@ internal sealed partial class DriveItemViewModel : ObservableObject
     [ObservableProperty]
     public partial bool LastScanNeedsAttention { get; private set; }
 
+    /// <summary>True when the last scan recorded a change journal position, so an update can start from it.</summary>
+    [ObservableProperty]
+    public partial bool CanUpdate { get; private set; }
+
     public void SetLastScan(ScanSessionSummary? session)
     {
+        CanUpdate = session is { Checkpoint: not null, HasInventory: true };
         if (session is null)
         {
             LastScanText = "Not scanned yet";
@@ -398,16 +433,18 @@ internal sealed partial class DriveItemViewModel : ObservableObject
 
         var culture = CultureInfo.CurrentCulture;
         var when = (session.EndedUtc ?? session.StartedUtc).ToLocalTime().ToString("g", culture);
+        var kind = session.Kind == ScanKind.Incremental ? "update" : "scan";
         LastScanText = session.State switch
         {
-            ScanState.Completed => $"Last scan complete · {when}",
+            ScanState.Completed => $"Last {kind} complete · {when}",
             ScanState.Partial when session.MaterialIssueCount > 0 => string.Format(
                 culture,
-                "Last scan partial: {0:N0} {1} couldn't be read · {2}",
+                "Last {0} partial: {1:N0} {2} couldn't be read · {3}",
+                kind,
                 session.MaterialIssueCount,
                 session.MaterialIssueCount == 1 ? "item" : "items",
                 when),
-            _ => $"Last scan {ScanText.State(session.State).ToLowerInvariant()} · {when}",
+            _ => $"Last {kind} {ScanText.State(session.State).ToLowerInvariant()} · {when}",
         };
         LastScanNeedsAttention = session.State != ScanState.Completed;
     }

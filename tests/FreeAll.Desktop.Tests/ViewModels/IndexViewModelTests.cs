@@ -259,7 +259,7 @@ public sealed class CategoriesViewModelTests
         await page.PendingLoad;
 
         Assert.Equal(["Images", "Documents"], page.Rows.Select(r => r.Name));
-        Assert.Equal(0.75, page.Rows[0].Share, 3);
+        Assert.Equal(0.75, page.Rows[0].ShareFraction, 3);
         Assert.StartsWith("Extensions: .arw, .avif, .bmp", page.Rows[0].RuleText, StringComparison.Ordinal);
         Assert.Contains("1,201 files", page.TotalText, StringComparison.Ordinal);
 
@@ -290,7 +290,7 @@ public sealed class ScanHistoryViewModelTests
         await page.PendingLoad;
 
         Assert.Contains(page.Details, f => f.Label == "Result" && f.Value == "Partial. 1 item couldn't be read.");
-        Assert.Contains(page.Details, f => f.Label == "Links and reparse points" && f.Value.StartsWith("Not followed", StringComparison.Ordinal));
+        Assert.Contains(page.Details, f => f.Label == "Links and reparse points" && f.Value.StartsWith("No reparse point followed", StringComparison.Ordinal));
         var issue = Assert.Single(page.Issues);
         Assert.Equal(@"C:\Locked", issue.Path);
         Assert.Equal("Access denied", issue.Problem);

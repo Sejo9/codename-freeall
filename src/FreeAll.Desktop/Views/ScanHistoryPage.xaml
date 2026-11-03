@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=index:ScanHistoryViewModel}"
              x:ClassModifier="internal">
@@ -19,11 +20,23 @@
         <ColumnDefinition Width="4*" MinWidth="340" />
       </Grid.ColumnDefinitions>
 
+      <DockPanel>
+      <DockPanel Margin="0,0,0,8" DockPanel.Dock="Top">
+        <Button Margin="8,0,0,0" Command="{Binding ExportScanCommand}" Content="Export scan…" DockPanel.Dock="Right"
+                ToolTip="CSV or JSON: every folder and file of the selected scan. HTML or PDF: a report with its summary, categories, largest items and errors." />
+        <Button Margin="8,0,0,0" Command="{Binding CompareCommand}" Content="Compare" DockPanel.Dock="Right"
+                ToolTip="Select two scans of the same drive (Ctrl+click) to see what changed between them" />
+        <TextBlock VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" TextWrapping="Wrap">
+          <Run Text="Select two scans of one drive to compare them." />
+          <Run Text="{Binding StatusMessage, Mode=OneWay}" />
+        </TextBlock>
+      </DockPanel>
       <Border Padding="0" Style="{StaticResource Card}">
         <DataGrid AutomationProperties.Name="Scans"
                   CanUserSortColumns="False"
                   ItemsSource="{Binding Sessions}"
                   SelectedItem="{Binding SelectedSession}"
+                  SelectionChanged="OnSessionsSelectionChanged"
                   AutoGenerateColumns="False"
                   BorderThickness="0"
                   CanUserReorderColumns="True"
@@ -33,12 +46,13 @@
                   GridLinesVisibility="None"
                   HeadersVisibility="Column"
                   IsReadOnly="True"
-                  SelectionMode="Single"
+                  SelectionMode="Extended"
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.ScrollUnit="Item"
                   VirtualizingPanel.VirtualizationMode="Recycling">
           <DataGrid.Columns>
             <DataGridTextColumn ElementStyle="{StaticResource Cell.Secondary}" Width="*" MinWidth="120" Binding="{Binding DriveText}" Header="Drive" />
+            <DataGridTextColumn ElementStyle="{StaticResource Cell.Secondary}" Width="80" MinWidth="80" Binding="{Binding KindText}" Header="Kind" />
             <DataGridTemplateColumn Width="110" MinWidth="110" Header="Result">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate DataType="{x:Type index:SessionRowViewModel}">
@@ -69,16 +83,34 @@
           </DataGrid.Columns>
         </DataGrid>
       </Border>
+      </DockPanel>
 
       <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" AutomationProperties.Name="Resize details pane" />
 
-      <Grid Grid.Column="2">
+      <Grid Grid.Column="2" Visibility="{Binding Comparison, Converter={StaticResource InverseNullToVisibility}}">
         <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border MaxHeight="420" Margin="0,0,0,12" Style="{StaticResource Card}">
+        <!-- Size over time for the selected scan's drive; the scan list is the table view of the same values. -->
+        <Border Margin="0,0,0,12" Style="{StaticResource Card}" Visibility="{Binding TrendText, Converter={StaticResource NullToVisibility}}">
+          <StackPanel>
+            <TextBlock Style="{StaticResource FieldLabel}" Text="Size on disk over time" />
+            <controls:BarChart Height="110"
+                               Margin="0,4,0,4"
+                               AutomationProperties.HelpText="{Binding TrendText}"
+                               AutomationProperties.Name="Size on disk of each scan of this drive"
+                               AxisLabel="{Binding TrendAxis}"
+                               Foreground="{DynamicResource Color.TextSecondary}"
+                               Surface="{DynamicResource Color.Surface}"
+                               Values="{Binding Trend}" />
+            <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding TrendText}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" MaxHeight="420" Margin="0,0,0,12" Style="{StaticResource Card}">
           <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
             <ItemsControl AutomationProperties.Name="Scan details" Focusable="False" ItemsSource="{Binding Details}">
               <ItemsControl.ItemTemplate>
@@ -97,7 +129,7 @@
           </ScrollViewer>
         </Border>
 
-        <Border Grid.Row="1" Padding="0" Style="{StaticResource Card}">
+        <Border Grid.Row="2" Padding="0" Style="{StaticResource Card}">
           <DockPanel>
             <TextBlock Margin="12,8" DockPanel.Dock="Top" Style="{StaticResource Typography.Caption}" Text="{Binding IssuesText}" />
             <DataGrid AutomationProperties.Name="Errors"
@@ -125,6 +157,69 @@
           </DockPanel>
         </Border>
       </Grid>
+
+      <!-- Comparison of two scans -->
+      <Border Grid.Column="2" Padding="0" Style="{StaticResource Card}" Visibility="{Binding Comparison, Converter={StaticResource NullToVisibility}}">
+        <DockPanel>
+          <StackPanel Margin="16,12,16,8" DockPanel.Dock="Top">
+            <DockPanel>
+              <Button Margin="8,0,0,0" Command="{Binding CloseComparisonCommand}" Content="Close" DockPanel.Dock="Right" />
+              <Button Margin="8,0,0,0" Command="{Binding ExportComparisonCommand}" Content="Export…" DockPanel.Dock="Right" />
+              <TextBlock VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level2" Style="{StaticResource Typography.Title}" Text="{Binding Comparison.Title}" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+            <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Body}" Text="{Binding Comparison.Summary}" TextWrapping="Wrap" />
+            <TextBlock Margin="0,4,0,0"
+                       Foreground="{DynamicResource Color.Warning}"
+                       Style="{StaticResource Typography.Caption}"
+                       Text="{Binding Comparison.Caveat}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding Comparison.Caveat, Converter={StaticResource NullToVisibility}}" />
+            <TextBlock Margin="0,12,0,4" Style="{StaticResource FieldLabel}" Text="By category" />
+            <DataGrid MaxHeight="220"
+                      AutomationProperties.Name="Changes by category"
+                      Visibility="{Binding Comparison.NoCategoryChange, Converter={StaticResource InverseNullToVisibility}}"
+                      CanUserSortColumns="False"
+                      ItemsSource="{Binding Comparison.Categories}"
+                      AutoGenerateColumns="False"
+                      BorderThickness="0"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Single">
+              <DataGrid.Columns>
+                <DataGridTextColumn Width="*" MinWidth="160" Binding="{Binding Name}" ElementStyle="{StaticResource Cell.Secondary}" Header="Category" />
+                <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding OlderBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="Before" />
+                <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding NewerBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="After" />
+                <DataGridTextColumn Width="110" MinWidth="110" Binding="{Binding ChangeText}" ElementStyle="{StaticResource Cell.Numeric}" Header="Change" />
+              </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Comparison.NoCategoryChange}" Visibility="{Binding Comparison.NoCategoryChange, Converter={StaticResource NullToVisibility}}" />
+            <TextBlock Margin="0,12,0,0" Style="{StaticResource FieldLabel}" Text="Folders that changed most (up to 4 levels deep)" Visibility="{Binding Comparison.HasFolders, Converter={StaticResource BoolToVisibility}}" />
+            <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Comparison.NoFolderChange}" Visibility="{Binding Comparison.NoFolderChange, Converter={StaticResource NullToVisibility}}" />
+          </StackPanel>
+          <DataGrid Margin="16,0,16,12"
+                    AutomationProperties.Name="Folders that changed most"
+                    CanUserSortColumns="False"
+                    ItemsSource="{Binding Comparison.Folders}"
+                    Visibility="{Binding Comparison.Folders.Count, Converter={StaticResource NullToVisibility}}"
+                    AutoGenerateColumns="False"
+                    BorderThickness="0"
+                    EnableRowVirtualization="True"
+                    GridLinesVisibility="None"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    SelectionMode="Single"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="*" MinWidth="200" Binding="{Binding Name}" ElementStyle="{StaticResource Cell.Secondary}" Header="Folder" />
+              <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding OlderBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="Before" />
+              <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding NewerBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="After" />
+              <DataGridTextColumn Width="140" MinWidth="140" Binding="{Binding ChangeText}" ElementStyle="{StaticResource Cell.Numeric}" Header="Change" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
     </Grid>
 
     <Border MaxWidth="640"

@@ -27,4 +27,16 @@
   <SolidColorBrush x:Key="Color.MeterTrack" Color="{x:Static SystemColors.WindowColor}" />
   <SolidColorBrush x:Key="Color.Folder" Color="{x:Static SystemColors.WindowTextColor}" />
 
+  <!-- Charts in high contrast: system colours only; identity comes from the labels. -->
+  <SolidColorBrush x:Key="Color.Chart.1" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.2" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.3" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.4" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.5" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.6" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.7" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.8" Color="{x:Static SystemColors.HighlightColor}" />
+  <SolidColorBrush x:Key="Color.Chart.Neutral" Color="{x:Static SystemColors.GrayTextColor}" />
+  <SolidColorBrush x:Key="Color.Chart.Surface" Color="{x:Static SystemColors.WindowColor}" />
+
 </ResourceDictionary>

@@ -48,6 +48,10 @@ internal sealed partial class CategoriesViewModel : PageViewModel
     [ObservableProperty]
     public partial string? TotalText { get; private set; }
 
+    /// <summary>Each category's share of space on disk, for the summary bar. The rows below list the same values.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<Controls.ChartValue>? Shares { get; private set; }
+
     internal Task PendingLoad { get; private set; } = Task.CompletedTask;
 
     public override Task OnNavigatedToAsync(CancellationToken cancellationToken) => _loaded ? Task.CompletedTask : ReloadAsync();
@@ -111,6 +115,7 @@ internal sealed partial class CategoriesViewModel : PageViewModel
                 Rows.Add(new CategoryRowViewModel(total, (double)total.AllocatedBytes / allocated, culture));
             }
 
+            Shares = Rows.Select(r => r.Share).ToList();
             TotalText = string.Format(
                 culture,
                 "{0:N0} files using {1} on disk.",
@@ -140,7 +145,7 @@ internal sealed class CategoryRowViewModel
     {
         Category = total.Category;
         Name = ScanText.Category(total.Category);
-        Share = share;
+        ShareFraction = share;
         SizeText = ByteSizeFormatter.Format(total.AllocatedBytes, culture);
         DetailText = string.Format(culture, "{0:N0} files · {1:P1} of scanned storage · {2} logical size", total.FileCount, share, ByteSizeFormatter.Format(total.LogicalBytes, culture));
 
@@ -154,13 +159,24 @@ internal sealed class CategoryRowViewModel
                  + (total.Category is FileCategory.System or FileCategory.Temporary ? ". Also unrecognized files in Windows or temporary folders." : string.Empty),
         };
         AutomationName = $"{Name}: {SizeText}, {DetailText}";
+        ColorKey = Controls.ChartPalette.KeyFor(total.Category);
+        Share = new Controls.ChartValue(Name, total.AllocatedBytes, ColorKey, $"{Name}: {SizeText} ({share.ToString("P1", culture)})");
+        Swatch = [Share];
     }
+
+    /// <summary>Colour of the category in the summary bar and the treemap.</summary>
+    public string ColorKey { get; }
+
+    public Controls.ChartValue Share { get; }
+
+    /// <summary>The single-value key shown beside the name, matching the summary bar.</summary>
+    public IReadOnlyList<Controls.ChartValue> Swatch { get; }
 
     public FileCategory Category { get; }
 
     public string Name { get; }
 
-    public double Share { get; }
+    public double ShareFraction { get; }
 
     public string SizeText { get; }
 

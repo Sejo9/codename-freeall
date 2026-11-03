@@ -24,6 +24,7 @@ internal static unsafe partial class FileSystemNative
     public const uint FileAttributeReparsePoint = 0x400;
 
     // FILE_INFO_BY_HANDLE_CLASS
+    public const int FileAttributeTagInfo = 9;
     public const int FileIdBothDirectoryInfo = 10;
     public const int FileIdExtdDirectoryInfo = 19;
 
@@ -32,6 +33,54 @@ internal static unsafe partial class FileSystemNative
     public const int ErrorNotSupported = 50;
     public const int ErrorInvalidParameter = 87;
     public const int ErrorInvalidLevel = 124;
+    public const int ErrorJournalDeleteInProgress = 1178;
+    public const int ErrorJournalNotActive = 1179;
+    public const int ErrorJournalEntryDeleted = 1181;
+
+    // Change journal control codes. The unprivileged read (Windows 10 1709 and later) works for standard
+    // users on any handle to the volume, and leaves file names out of the records.
+    public const uint FsctlQueryUsnJournal = 0x000900F4;
+    public const uint FsctlReadUnprivilegedUsnJournal = 0x000903AB;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool DeviceIoControl(SafeFileHandle device, uint ioControlCode, void* inBuffer, uint inBufferSize, void* outBuffer, uint outBufferSize, out uint bytesReturned, IntPtr overlapped);
+
+    /// <summary>FILE_ATTRIBUTE_TAG_INFO.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct AttributeTagInfo
+    {
+        public uint FileAttributes;
+        public uint ReparseTag;
+    }
+
+    /// <summary>USN_JOURNAL_DATA_V0 (the fields every version starts with).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct UsnJournalData
+    {
+        public ulong UsnJournalId;
+        public long FirstUsn;
+        public long NextUsn;
+        public long LowestValidUsn;
+        public long MaxUsn;
+        public ulong MaximumSize;
+        public ulong AllocationDelta;
+    }
+
+    /// <summary>READ_USN_JOURNAL_DATA_V1 (48 bytes with padding). Accepts records of versions 2 and 3.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReadUsnJournalData
+    {
+        public long StartUsn;
+        public uint ReasonMask;
+        public uint ReturnOnlyOnClose;
+        public ulong Timeout;
+        public ulong BytesToWaitFor;
+        public ulong UsnJournalId;
+        public ushort MinMajorVersion;
+        public ushort MaxMajorVersion;
+    }
 
     [LibraryImport("kernel32.dll", EntryPoint = "CreateFileW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]

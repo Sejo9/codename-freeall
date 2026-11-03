@@ -8,6 +8,6 @@
 - Build and test: `./build.ps1` (CI: `./build.ps1 -Configuration Release -Locked -Publish`). Warnings are errors.
 - After changing package references, run a normal `dotnet restore` so the `packages.lock.json` files update, then commit them.
 - UI changes: build Debug and run `FreeAll.exe --capture-screens <scratch folder> --data-dir <scratch data folder>` (add `--capture-scan <path>` for pages with data), then review the PNGs in light and dark before reporting UI work as done. Colours only via `DynamicResource Color.*` tokens (TD-011).
-- Scanner and index rules: TD-018 to TD-023. Persisted enum values in Core never change; schema changes are new migration scripts, never edits.
+- Scanner and index rules: TD-018 to TD-023; incremental updates, hard links, search, export, review queue, retention, charts: TD-025 to TD-032. Chart colours: `Color.Chart.*` tokens, assigned by category (`ChartPalette`). Persisted enum values in Core never change; schema changes are new migration scripts, never edits.
 - WPF projects do not get `System.IO` as an implicit using (it conflicts with `System.Windows.Shapes.Path`); add `using System.IO;` explicitly.
 - At session end, update `docs/17`, `docs/18` and `docs/19`, and report in the format in `docs/15` §8.

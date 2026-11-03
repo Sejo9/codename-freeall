@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using FreeAll.Desktop.Controls;
 using FreeAll.Desktop.ViewModels.Index;
 
 namespace FreeAll.Desktop.Views;
@@ -32,6 +33,21 @@ internal partial class ExplorerPage : UserControl
             e.Handled = true;
         }
         else if (e.Key == Key.Back && ViewModel is { } model && model.UpCommand.CanExecute(null))
+        {
+            model.UpCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    // DataGrid.SelectedItems can't be bound, so multi-selection is forwarded here.
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ViewModel?.SetSelection(FileGrid.SelectedItems.OfType<IndexRowViewModel>().ToList());
+
+    private void OnTileActivated(object? sender, TreemapItem tile) => ViewModel?.OpenTile(tile);
+
+    private void OnTreemapKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Back && ViewModel is { } model && model.UpCommand.CanExecute(null))
         {
             model.UpCommand.Execute(null);
             e.Handled = true;

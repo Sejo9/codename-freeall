@@ -12,4 +12,10 @@ internal interface INavigator
 
     /// <summary>Opens Large Files filtered to one scan and, optionally, one category.</summary>
     Task ShowLargestFilesAsync(long sessionId, FileCategory? category);
+
+    /// <summary>Opens Search with this text.</summary>
+    Task ShowSearchAsync(string text);
+
+    /// <summary>Opens the review queue.</summary>
+    void ShowReviewQueue();
 }

@@ -1,4 +1,7 @@
+using System.Globalization;
+using FreeAll.Application.Scanning;
 using FreeAll.Core.Classification;
+using FreeAll.Core.Review;
 using FreeAll.Core.Scanning;
 
 namespace FreeAll.Application.Formatting;
@@ -17,6 +20,65 @@ public static class ScanText
         ScanState.Interrupted => "Interrupted",
         _ => "Unknown",
     };
+
+    public static string Kind(ScanKind kind) => kind switch
+    {
+        ScanKind.Incremental => "Update",
+        _ => "Full scan",
+    };
+
+    public static string Origin(ReviewOrigin origin) => origin switch
+    {
+        ReviewOrigin.StorageExplorer => "Storage Explorer",
+        ReviewOrigin.LargeFiles => "Large Files",
+        ReviewOrigin.Search => "Search",
+        ReviewOrigin.Treemap => "Treemap",
+        _ => "Unknown",
+    };
+
+    /// <summary>The reparse-point policy recorded with a session, in words.</summary>
+    public static string ReparsePolicy(string policy) => policy switch
+    {
+        ScanSessionSummary.LinksNotFollowedCloudListed => "Links (junctions, symbolic links, mount points) not followed; cloud folders such as OneDrive listed",
+        ScanSessionSummary.ReparsePointsNotFollowed => "No reparse point followed, including cloud folders",
+        _ => policy,
+    };
+
+    /// <summary>Short notes for a row: folder state, cloud file, hard links, reparse point. Empty when there is nothing to say.</summary>
+    public static string EntryNote(IndexEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (entry.IsFolder)
+        {
+            return entry.FolderState switch
+            {
+                DirectoryScanState.Scanned when entry.IsIncomplete => "Some contents unreadable",
+                DirectoryScanState.Scanned when ReparsePoints.Classify(entry.ReparseTag) == ReparsePointKind.CloudPlaceholder => "Cloud folder",
+                DirectoryScanState.Scanned => string.Empty,
+                { } state => FolderState(state),
+                null => string.Empty,
+            };
+        }
+
+        var notes = new List<string>(2);
+        if (entry.IsCloudOnly)
+        {
+            notes.Add("Cloud file, not on this PC");
+        }
+
+        if (entry.LinkCount > 1)
+        {
+            notes.Add(string.Format(CultureInfo.CurrentCulture, "Hard link ({0} names)", entry.LinkCount));
+        }
+
+        if (entry.ReparseTag != 0 && !entry.IsCloudOnly)
+        {
+            notes.Add(ReparsePoint(entry.ReparseTag));
+        }
+
+        return string.Join(" · ", notes);
+    }
 
     public static string Category(FileCategory category) => category switch
     {
@@ -95,6 +157,7 @@ public static class ScanText
         ScanIssueKind.VolumeUnavailable => "Drive unavailable",
         ScanIssueKind.DepthLimit => "Too deep",
         ScanIssueKind.OtherVolume => "On another drive",
+        ScanIssueKind.CloudUnavailable => "Cloud folder unavailable",
         _ => "Other error",
     };
 

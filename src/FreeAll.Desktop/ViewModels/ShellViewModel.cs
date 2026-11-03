@@ -15,7 +15,16 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
     private readonly IAppDatabase _database;
     private readonly ILogger<ShellViewModel> _logger;
 
-    public ShellViewModel(IReadOnlyList<NavigationItem> navigationItems, IAppDatabase database, ScanActivityViewModel scanActivity, ILogger<ShellViewModel> logger)
+    private readonly Func<SearchViewModel> _search;
+    private readonly Func<ReviewQueueViewModel> _review;
+
+    public ShellViewModel(
+        IReadOnlyList<NavigationItem> navigationItems,
+        IAppDatabase database,
+        ScanActivityViewModel scanActivity,
+        ILogger<ShellViewModel> logger,
+        Func<SearchViewModel>? search = null,
+        Func<ReviewQueueViewModel>? review = null)
     {
         ArgumentOutOfRangeException.ThrowIfZero(navigationItems.Count);
 
@@ -23,6 +32,8 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
         _database = database;
         ScanActivity = scanActivity;
         _logger = logger;
+        _search = search ?? (() => throw new InvalidOperationException("Search is not available."));
+        _review = review ?? (() => throw new InvalidOperationException("The review queue is not available."));
         IsNavigationExpanded = true;
         SelectedItem = navigationItems[0];
     }
@@ -40,6 +51,13 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
 
     /// <summary>Scan state shown in the status region.</summary>
     public ScanActivityViewModel ScanActivity { get; }
+
+    /// <summary>The review queue, for the header button and its count.</summary>
+    public ReviewQueueViewModel ReviewQueue => _review();
+
+    /// <summary>Text in the header search box.</summary>
+    [ObservableProperty]
+    public partial string? SearchText { get; set; }
 
     public bool IsDatabaseReady => _database.Health.IsReady;
 
@@ -75,6 +93,29 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
         {
             await largeFiles.ShowAsync(sessionId, category);
         }
+    }
+
+    public async Task ShowSearchAsync(string text)
+    {
+        var page = _search();
+        Show(page);
+        await page.SearchForAsync(text);
+    }
+
+    public void ShowReviewQueue() => Show(_review());
+
+    [RelayCommand]
+    private Task SearchAsync() => string.IsNullOrWhiteSpace(SearchText) ? Task.CompletedTask : ShowSearchAsync(SearchText.Trim());
+
+    [RelayCommand]
+    private void OpenReviewQueue() => ShowReviewQueue();
+
+    /// <summary>Shows a page that has no entry in the navigation rail (opened from the header).</summary>
+    private void Show(PageViewModel page)
+    {
+        SelectedItem = null;
+        CurrentPage = page;
+        _ = ActivateAsync(page);
     }
 
     /// <summary>Re-reads state owned by other services, e.g. after database initialization.</summary>

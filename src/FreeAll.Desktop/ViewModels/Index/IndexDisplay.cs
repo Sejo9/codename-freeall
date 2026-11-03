@@ -53,20 +53,14 @@ internal sealed class IndexRowViewModel
             Glyph = entry.FolderState == DirectoryScanState.ReparsePoint ? "" : "";
             TypeText = entry.FolderState == DirectoryScanState.ReparsePoint ? ScanText.ReparsePoint(entry.ReparseTag) : "Folder";
             CategoryText = string.Empty;
-            StatusText = entry.FolderState switch
-            {
-                DirectoryScanState.Scanned when entry.IsIncomplete => "Some contents unreadable",
-                DirectoryScanState.Scanned => string.Empty,
-                { } state => ScanText.FolderState(state),
-                null => string.Empty,
-            };
+            StatusText = ScanText.EntryNote(entry);
         }
         else
         {
             Glyph = "";
             TypeText = entry.Extension.Length == 0 ? "File" : entry.Extension.ToUpperInvariant() + " file";
             CategoryText = entry.Classification is { } classification ? ScanText.Category(classification.Category) : string.Empty;
-            StatusText = entry.ReparseTag != 0 ? ScanText.ReparsePoint(entry.ReparseTag) : string.Empty;
+            StatusText = ScanText.EntryNote(entry);
         }
 
         AttributesText = ScanText.Attributes(entry.Attributes);
@@ -141,6 +135,15 @@ internal sealed class EntryDetailsViewModel
         {
             fields.Add(new("Size", Size(entry.LogicalSize, culture)));
             fields.Add(new("Size on disk", Size(entry.AllocatedSize, culture) + " (as reported by the file system)"));
+            if (entry.IsCloudOnly)
+            {
+                fields.Add(new("Cloud file", "Its contents are in the cloud, not on this PC, so it uses little or no space here. FreeAll didn't download it."));
+            }
+
+            if (entry.LinkCount > 1)
+            {
+                fields.Add(new("Hard links", string.Format(culture, "This file has {0} names in this scan. Folder totals count it once; removing one name doesn't free its space.", entry.LinkCount)));
+            }
             if (entry.Classification is { } classification)
             {
                 fields.Add(new("Category", ScanText.Category(classification.Category)));
@@ -170,7 +173,8 @@ internal sealed class EntryDetailsViewModel
 
         fields.Add(new("Found by", string.Format(
             culture,
-            "Scan {0} · {1} · {2}",
+            "{0} {1} · {2} · {3}",
+            session.Kind == ScanKind.Incremental ? "Update" : "Scan",
             session.Id,
             ScanText.State(session.State),
             session.EndedUtc?.ToLocalTime().ToString("g", culture) ?? "not finished")));

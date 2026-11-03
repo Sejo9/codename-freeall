@@ -1,10 +1,12 @@
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Preferences;
 using FreeAll.Application.Scanning;
 using FreeAll.Core.Scanning;
 using FreeAll.Core.Volumes;
 using FreeAll.Infrastructure.Persistence;
 using FreeAll.Infrastructure.Persistence.Migrations;
 using FreeAll.Scanner.Enumeration;
+using FreeAll.Scanner.Journal;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FreeAll.Integration.Tests.Scanning;
@@ -115,9 +117,11 @@ public sealed class ScanPipelineTests : IDisposable
 
     private ScanCoordinator Coordinator(ScanOptions? options = null) => new(
         new WindowsVolumeScanner(NullLogger<WindowsVolumeScanner>.Instance),
+        new UsnChangeJournal(),
         _store,
         _exclusions,
         _database,
+        new RetentionSettings(new SqliteUserPreferences(_database)),
         options ?? ScanOptions.Default,
         NullLogger<ScanCoordinator>.Instance,
         TimeSpan.FromMilliseconds(5));

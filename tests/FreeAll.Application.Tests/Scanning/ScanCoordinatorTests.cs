@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Preferences;
 using FreeAll.Application.Scanning;
 using FreeAll.Core.Classification;
 using FreeAll.Core.Scanning;
@@ -17,6 +18,8 @@ public sealed class ScanCoordinatorTests
     private readonly FakeScanStore _store = new();
     private readonly FakeExclusions _exclusions = new();
     private readonly FakeDatabase _database = new();
+    private readonly FakeJournal _journal = new();
+    private readonly FakeRetention _retention = new();
 
     [Fact]
     public async Task Scans_targets_in_order_and_saves_each_session()
@@ -221,8 +224,107 @@ public sealed class ScanCoordinatorTests
         Assert.Null(coordinator.Progress);
     }
 
+    [Fact]
+    public async Task A_full_scan_records_the_journal_checkpoint_and_builds_the_search_index()
+    {
+        var checkpoint = new JournalCheckpoint(7, 1000);
+        _scanner.Script = (_, _, _, _) => Task.FromResult(new VolumeScanResult(ScanTermination.Finished, Checkpoint: checkpoint));
+
+        await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC)]);
+
+        Assert.Equal(checkpoint, Assert.Single(_store.Completions).Checkpoint);
+        Assert.Equal([1L], _store.SearchIndexed);
+        Assert.Equal(_retention.Policy, Assert.Single(_store.Policies));
+    }
+
+    [Fact]
+    public async Task An_update_copies_the_baseline_and_lists_changed_and_unreadable_folders_again()
+    {
+        _store.UpdateBase = BaseSession(checkpoint: new JournalCheckpoint(7, 1000));
+        _store.Baseline.Directories.Add(new BaselineDirectory(1, null, string.Empty, @"\", 0, DirectoryScanState.Scanned, 5));
+        _store.Baseline.Directories.Add(new BaselineDirectory(2, 1, "Docs", @"\Docs", 1, DirectoryScanState.Scanned, 40));
+        _store.Baseline.Directories.Add(new BaselineDirectory(3, 1, "Locked", @"\Locked", 1, DirectoryScanState.AccessDenied, 41));
+        _store.Baseline.Directories.Add(new BaselineDirectory(4, 1, "Same", @"\Same", 1, DirectoryScanState.Scanned, 42));
+        _journal.Changes = new JournalChanges(JournalReadStatus.Read, new JournalCheckpoint(7, 2000), new HashSet<UInt128> { 40, 999 }, 3);
+
+        var result = await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC, ScanKind.Incremental)]);
+
+        var started = Assert.Single(_store.Started);
+        Assert.Equal(ScanKind.Incremental, started.Kind);
+        Assert.Equal(_store.UpdateBase.Id, started.BaseSessionId);
+        Assert.Equal((_store.UpdateBase.Id, 1L), Assert.Single(_store.Copies));
+        Assert.Empty(_scanner.Requests);
+        var rescan = Assert.Single(_scanner.Rescans);
+        Assert.Equal([2, 3], rescan.Targets.Select(t => t.Key).Order());
+        Assert.Equal(5, rescan.FirstNewKey);
+        var completion = Assert.Single(_store.Completions);
+        Assert.Equal(new JournalCheckpoint(7, 2000), completion.Checkpoint);
+        Assert.Equal(2, completion.ChangedDirectoryCount);
+        Assert.StartsWith("Updated from the scan of", completion.Note, StringComparison.Ordinal);
+        Assert.Equal(ScanState.Completed, Assert.Single(result.Sessions).State);
+    }
+
+    [Theory]
+    [InlineData(JournalReadStatus.Truncated, "no longer goes back")]
+    [InlineData(JournalReadStatus.Recreated, "was reset")]
+    [InlineData(JournalReadStatus.NotActive, "turned off")]
+    [InlineData(JournalReadStatus.TooManyChanges, "full scan is quicker")]
+    public async Task An_update_falls_back_to_a_full_scan_when_the_journal_cannot_be_trusted(JournalReadStatus status, string reason)
+    {
+        _store.UpdateBase = BaseSession(checkpoint: new JournalCheckpoint(7, 1000));
+        _journal.Changes = JournalChanges.Unavailable(status);
+
+        await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC, ScanKind.Incremental)]);
+
+        Assert.Equal(ScanKind.Full, Assert.Single(_store.Started).Kind);
+        Assert.Single(_scanner.Requests);
+        Assert.Empty(_scanner.Rescans);
+        Assert.Empty(_store.Copies);
+        var note = Assert.Single(_store.Completions).Note;
+        Assert.Contains(reason, note, StringComparison.Ordinal);
+        Assert.Contains("A full scan was run instead.", note, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_update_falls_back_when_there_is_no_usable_baseline()
+    {
+        // No earlier scan.
+        await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC, ScanKind.Incremental)]);
+        Assert.Contains("no earlier scan", _store.Completions[^1].Note, StringComparison.Ordinal);
+
+        // No checkpoint (not NTFS, or the journal was off).
+        _store.UpdateBase = BaseSession(checkpoint: null);
+        await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC, ScanKind.Incremental)]);
+        Assert.Contains("no change journal position", _store.Completions[^1].Note, StringComparison.Ordinal);
+
+        // Exclusions changed.
+        _store.UpdateBase = BaseSession(checkpoint: new JournalCheckpoint(7, 1000));
+        _exclusions.Items.Add(new ScanExclusion(1, VolumeC.Id, @"\Games", @"C:\Games", DateTime.UtcNow));
+        await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC, ScanKind.Incremental)]);
+        Assert.Contains("Excluded folders have changed", _store.Completions[^1].Note, StringComparison.Ordinal);
+
+        Assert.All(_store.Started, s => Assert.Equal(ScanKind.Full, s.Kind));
+        Assert.Equal(0, _journal.Reads);
+    }
+
+    [Fact]
+    public async Task A_failed_search_index_does_not_fail_the_scan()
+    {
+        _store.FailSearchIndex = true;
+
+        var result = await Coordinator().RunAsync([ScanTarget.WholeVolume(VolumeC)]);
+
+        Assert.Null(result.Problem);
+        Assert.Equal(ScanState.Completed, Assert.Single(result.Sessions).State);
+    }
+
     private ScanCoordinator Coordinator() =>
-        new(_scanner, _store, _exclusions, _database, ScanOptions.Default, NullLogger<ScanCoordinator>.Instance, TimeSpan.FromMilliseconds(5));
+        new(_scanner, _journal, _store, _exclusions, _database, _retention, ScanOptions.Default, NullLogger<ScanCoordinator>.Instance, TimeSpan.FromMilliseconds(5));
+
+    private static ScanSessionSummary BaseSession(JournalCheckpoint? checkpoint) => new(
+        77, VolumeC.Id, null, @"C:\", @"\", ScanState.Completed, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(-1),
+        4, 10, 100, 100, 0, 0, 0, 0, 0, null, null, [], ScanSessionSummary.LinksNotFollowedCloudListed, 9, FileClassifier.Version, null, true,
+        Checkpoint: checkpoint, TotalsVersion: 2);
 
     private static VolumeInfo Volume(string mountPoint) =>
         new(VolumeId.FromGuid(Guid.NewGuid()), null, "NTFS", [mountPoint], DriveKind.Fixed, true, 100, 50);
@@ -244,6 +346,8 @@ public sealed class ScanCoordinatorTests
         public Func<VolumeScanRequest, ChannelWriter<ScanBatch>, ScanProgress, CancellationToken, Task<VolumeScanResult>> Script { get; set; } =
             (_, _, _, _) => Task.FromResult(new VolumeScanResult(ScanTermination.Finished));
 
+        public List<VolumeRescanRequest> Rescans { get; } = [];
+
         public int Version => 9;
 
         public Task<VolumeScanResult> ScanAsync(VolumeScanRequest request, ChannelWriter<ScanBatch> output, ScanProgress progress, CancellationToken cancellationToken)
@@ -255,6 +359,52 @@ public sealed class ScanCoordinatorTests
 
             return Script(request, output, progress, cancellationToken);
         }
+
+        public Task<VolumeScanResult> RescanAsync(VolumeRescanRequest request, ChannelWriter<ScanBatch> output, ScanProgress progress, CancellationToken cancellationToken)
+        {
+            Rescans.Add(request);
+            return Task.FromResult(new VolumeScanResult(ScanTermination.Finished));
+        }
+    }
+
+    private sealed class FakeJournal : IChangeJournal
+    {
+        public JournalChanges Changes { get; set; } = JournalChanges.Unavailable(JournalReadStatus.NotSupported);
+
+        public int Reads { get; private set; }
+
+        public Task<JournalChanges> ReadChangesAsync(VolumeId volume, JournalCheckpoint since, int maxDirectories, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return Task.FromResult(Changes);
+        }
+    }
+
+    private sealed class FakeRetention : IRetentionSettings
+    {
+        public RetentionPolicy Policy { get; set; } = new(2, 90);
+
+        public Task<RetentionPolicy> GetAsync(CancellationToken cancellationToken) => Task.FromResult(Policy);
+
+        public Task SetAsync(RetentionPolicy policy, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeBaseline : IScanBaseline
+    {
+        public List<BaselineDirectory> Directories { get; } = [];
+
+        public long SessionId => 77;
+
+        public Task<int> GetMaxDirectoryKeyAsync(CancellationToken cancellationToken) => Task.FromResult(Directories.Count == 0 ? 1 : Directories.Max(d => d.Key));
+
+        public Task<IReadOnlyList<BaselineDirectory>> FindDirectoriesAsync(IReadOnlyCollection<UInt128> fileIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BaselineDirectory>>(Directories.Where(d => d.FileId is { } id && fileIds.Contains(id)).ToList());
+
+        public Task<IReadOnlyList<BaselineDirectory>> GetDirectoriesToRetryAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BaselineDirectory>>(Directories.Where(d => d.State.AffectsCompleteness()).ToList());
+
+        public Task<IReadOnlyList<BaselineDirectory>> GetSubdirectoriesAsync(int directoryKey, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BaselineDirectory>>(Directories.Where(d => d.ParentKey == directoryKey).ToList());
     }
 
     private sealed class FakeScanStore : IScanStore
@@ -274,6 +424,18 @@ public sealed class ScanCoordinatorTests
         public List<ScanIssue> WrittenIssues { get; } = [];
 
         public List<VolumeId> Pruned { get; } = [];
+
+        public List<RetentionPolicy> Policies { get; } = [];
+
+        public List<(long From, long To)> Copies { get; } = [];
+
+        public List<long> SearchIndexed { get; } = [];
+
+        public bool FailSearchIndex { get; set; }
+
+        public ScanSessionSummary? UpdateBase { get; set; }
+
+        public FakeBaseline Baseline { get; } = new();
 
         private Dictionary<long, VolumeId> Volumes { get; } = [];
 
@@ -322,10 +484,34 @@ public sealed class ScanCoordinatorTests
 
         public Task<int> RecoverInterruptedSessionsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 
-        public Task<int> PruneInventoriesAsync(VolumeId volume, CancellationToken cancellationToken)
+        public Task<int> PruneInventoriesAsync(VolumeId volume, RetentionPolicy policy, CancellationToken cancellationToken)
         {
             Pruned.Add(volume);
+            Policies.Add(policy);
             return Task.FromResult(0);
+        }
+
+        public Task<int> ApplyRetentionAsync(RetentionPolicy policy, CancellationToken cancellationToken) => Task.FromResult(0);
+
+        public Task<ScanSessionSummary?> GetUpdateBaseAsync(VolumeId volume, CancellationToken cancellationToken) => Task.FromResult(UpdateBase);
+
+        public IScanBaseline OpenBaseline(long sessionId) => Baseline;
+
+        public Task CopyInventoryAsync(long fromSessionId, long toSessionId, CancellationToken cancellationToken)
+        {
+            Copies.Add((fromSessionId, toSessionId));
+            return Task.CompletedTask;
+        }
+
+        public Task BuildSearchIndexAsync(long sessionId, CancellationToken cancellationToken)
+        {
+            if (FailSearchIndex)
+            {
+                throw new PersistenceException("No space.");
+            }
+
+            SearchIndexed.Add(sessionId);
+            return Task.CompletedTask;
         }
     }
 

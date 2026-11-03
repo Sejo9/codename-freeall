@@ -14,6 +14,10 @@
         MinHeight="520"
         WindowStartupLocation="CenterScreen">
 
+  <Window.InputBindings>
+    <KeyBinding Key="F" Modifiers="Control" Command="{Binding FocusSearchCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+  </Window.InputBindings>
+
   <Grid x:Name="RootLayout" Background="{DynamicResource Color.Background}" TextElement.FontFamily="{StaticResource Font.Text}">
     <Grid.RowDefinitions>
       <RowDefinition Height="*" />
@@ -88,15 +92,47 @@
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="32,24,32,12">
+        <DockPanel Grid.Row="0" Margin="32,24,32,12">
+          <!-- Title region actions: search and the review queue (docs/07-ui-ux-design.md §2). -->
+          <StackPanel Margin="16,4,0,0" VerticalAlignment="Top" DockPanel.Dock="Right" Orientation="Horizontal">
+            <Grid>
+            <TextBox x:Name="HeaderSearch"
+                     Width="260"
+                     VerticalContentAlignment="Center"
+                     AutomationProperties.HelpText="Type part of a file or folder name and press Enter."
+                     AutomationProperties.Name="Search file and folder names"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Search file and folder names in the latest scans (Ctrl+F)">
+              <TextBox.InputBindings>
+                <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+              </TextBox.InputBindings>
+            </TextBox>
+            <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=HeaderSearch}" Text="Search names (Ctrl+F)" />
+            </Grid>
+            <Button Margin="4,0,0,0" AutomationProperties.Name="Search" Command="{Binding SearchCommand}" Style="{StaticResource Button.Icon}" ToolTip="Search">
+              <TextBlock FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE721;" />
+            </Button>
+            <Button Margin="12,0,0,0"
+                    AutomationProperties.Name="{Binding ReviewQueue.CountText}"
+                    Command="{Binding OpenReviewQueueCommand}"
+                    ToolTip="Items you set aside to decide about later">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE762;" />
+                <TextBlock Text="{Binding ReviewQueue.CountText}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <StackPanel>
           <TextBlock AutomationProperties.HeadingLevel="Level1"
                      Style="{StaticResource Typography.Display}"
                      Text="{Binding CurrentPage.Title}" />
           <TextBlock Margin="0,4,0,0"
                      Style="{StaticResource Typography.Caption}"
                      Text="{Binding CurrentPage.Subtitle}"
+                     TextWrapping="Wrap"
                      Visibility="{Binding CurrentPage.Subtitle, Converter={StaticResource NullToVisibility}}" />
-        </StackPanel>
+          </StackPanel>
+        </DockPanel>
 
         <ContentControl Grid.Row="1" Content="{Binding CurrentPage}" Focusable="False" />
       </Grid>

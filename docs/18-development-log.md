@@ -286,3 +286,137 @@ bounded-memory design (TD-018).
 
 Phase 3: incremental scan foundation, USN Journal where validated,
 search, treemap and charts, scan history comparison and exports.
+
+## 2026-11-03 --- Phase 2 follow-ups and Phase 3: advanced storage analysis
+
+### Decisions received
+
+-   BLK-017 → DEC-029: list cloud placeholder folders (OneDrive), never
+    follow links, label cloud-only files with their real space on disk.
+-   DEC-030: deliver the review queue with multi-select, a retention
+    setting and hard-link-aware totals now, then Phase 3.
+
+### Completed
+
+-   **Cloud folders (DEC-029):** only cloud-family reparse tags that are
+    not links are listed; scanner version 2; cloud-only files labelled;
+    "Cloud folder unavailable" errors when the sync app isn't running.
+-   **Device notifications (F-007):** the Drives page refreshes itself
+    when a drive is added, removed or given another letter (TD-032).
+    Manual tests are documented for a person to run
+    (`12-quality-assurance.md` §3.1).
+-   **Large Files (F-016):** not-modified-for, folder-path and custom
+    size filters, more presets, multi-select, review queue, export.
+-   **Review queue and multi-select (TD-029):** extended selection, copy
+    of several paths and context menus in Storage Explorer, Large Files
+    and Search; a review queue opened from the title region; nothing on
+    disk changes.
+-   **Retention (TD-030):** Settings → Scan history; stricter choices are
+    confirmed and applied at once.
+-   **Hard links (F-028, TD-026):** totals count each hard-linked file
+    once; link counts shown; categories corrected.
+-   **Incremental updates (F-019, F-020, TD-025):** full scans record a
+    change journal checkpoint; Update reads the NTFS change journal as a
+    standard user (unprivileged read, no UAC), lists again only changed
+    and previously unreadable folders, and falls back to a full scan with
+    a stated reason whenever the history can't be trusted.
+-   **Search (F-017, TD-027):** per-scan FTS5 name index; header search
+    box (Ctrl+F) and Search page with filters.
+-   **Treemap and charts (F-021, TD-031):** treemap view in Storage
+    Explorer, category share bar, size-over-time chart in Scan History;
+    custom controls, validated palette, text on every mark (resolves
+    BLK-005).
+-   **Scan history and export (F-018, F-035, TD-028):** comparison of two
+    scans by category and folder; CSV, JSON, HTML and PDF export of every
+    list, full scans and scan reports.
+-   **Schema version 3** (`0003_incremental_search_review.sql`): session
+    kind, base session, journal checkpoint, totals version, hard-link and
+    cloud counters, link corrections and counts, path and identity
+    indexes, `SearchIndexes`, `ReviewItems`.
+-   **Dependency:** PdfPig 0.1.16 (Apache-2.0). PDFsharp was rejected:
+    version 6.5.0 is AGPL-3.0-only (DEC-024).
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: 0 warnings, 0
+errors; 412 tests, 411 passed, 1 skipped (creating symbolic links needs
+Developer Mode or elevation); no vulnerable packages; self-contained
+win-x64 publish succeeded; signing skipped (DEC-025). The published app
+opened its window, migrated the local database to schema version 3 and
+closed cleanly. One unit test for the folder roll-up was added after the
+pipeline run (413 tests; the Application suite was run again and
+passes). New suites and highlights:
+
+-   `IncrementalScanTests` (Phase 3 exit criterion): on a real NTFS
+    folder, an update built from the change journal after deletes,
+    renames, moves, appends and a new subtree equals a fresh full scan
+    entry for entry, without listing the 40 unchanged folders; real hard
+    links counted once.
+-   `UsnChangeJournalTests`: checkpoint, changed folders, recreated and
+    invalid checkpoints, too many changes, record parsing.
+-   `SqliteIndexFeatureTests`: hard links, incremental batch operations
+    (remove, clear, replace, stale), copy, baseline lookups, search,
+    comparison, retention, export streaming, review queue.
+-   `ReportExporterTests`: CSV formula neutralization and quoting, JSON
+    schema, HTML encoding and script policy, row limit, PDF read back.
+-   Coordinator: update planning and every fallback; Desktop view models
+    for Drives, Large Files, Explorer (treemap, tree sync), Search,
+    Review queue, Scan History (comparison, trend), Settings (retention);
+    treemap layout; hard-link and roll-up algorithms; search text.
+
+**Performance (BLK-009):** development PC, C: (NVMe, about 1M files),
+standard user, Debug build, separate data folder:
+
+  Measure                                   Before fix   After fix
+  ----------------------------------------- ------------ ------------
+  Full scan, total                          231 s        175 s
+  ... of which listing                      126 s        130 s
+  ... of which finishing (totals, links,    104 s        44 s
+  search index, retention)
+  Incremental update, total                 131 s        61 s
+  ... journal read and planning             1.3 s        1.1 s
+  ... copy and relisting (199 folders)      32 s         32 s
+  ... finishing                             99 s         29 s
+  Name search ("setup", 1,554 matches)      55 ms        47 ms
+  Peak working set during the full scan     228 MB       311 MB
+
+The fix replaced five passes over the files through an index (about
+11 s each) with sequential row-ID range passes, and the per-depth SQL
+roll-up (18--33 s) with an in-memory roll-up (under 3 s) (TD-026).
+Listing took longer than the Phase 2 baseline (90--132 s in total); the
+cause isn't established. Likely contributors are OneDrive's folders
+being listed now and normal cache variation; to be measured again under
+BLK-009. The update is about three times faster than a full scan on this
+drive, but its copy and finishing steps still grow with the number of
+files (TD-025). Hard links on C:: 94,057 extra names; 15.9 GB on disk is
+no longer counted twice.
+
+### Defects found and fixed during Phase 3
+
+-   PDFsharp's licence (AGPL) found on restore; replaced with PdfPig.
+-   FTS5 `detail=none` rejects column filters; queries match the table.
+-   Session finishing took about 100 s on 1M files (see above).
+-   Visual review: comparison title read "C::"; a clipped change column;
+    muted chart bars showed a darker band and a near-zero bar dipped
+    below the baseline; the category bar was centred instead of
+    left-aligned; System and Application data shared a colour; text boxes
+    had no visible hint; the treemap caption called zero-byte items
+    hidden; empty comparison tables showed only headers.
+-   A custom size that wasn't a number also blocked the folder query.
+
+### Open
+
+-   Manual F-007 tests and the journal-reset check
+    (`12-quality-assurance.md` §3.1): need a person with administrator
+    rights and a USB drive.
+-   Faster incremental updates (avoid copying unchanged rows); listing
+    time to re-measure (BLK-009).
+-   Narrator and high-contrast review of the new pages (BLK-006).
+-   Elevated scanning (DEC-023, Phase 6 helper). TD-014 redaction gap.
+-   CI has not yet run on GitHub (the repository has not been pushed).
+
+### Next
+
+Phase 4: application residue and temporary data (installed-app
+inventory, registry and MSIX inventory, known paths, evidence and
+confidence, temporary and cache rules, keep/ignore/review workflows).

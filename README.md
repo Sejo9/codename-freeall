@@ -2,10 +2,12 @@
 
 Windows 11 storage intelligence and safe-cleanup desktop application (WPF, .NET 10, x64).
 
-**Status:** Phase 2 (scanner and storage explorer). FreeAll scans local drives (read-only, without
-following links), stores the results locally, and shows them in Storage Explorer, Large Files, File
-Categories and Scan History. Cleanup is not implemented yet; see
-[docs/17-feature-checklist.md](docs/17-feature-checklist.md).
+**Status:** Phase 3 (advanced storage analysis). FreeAll scans local drives (read-only, never
+following links; OneDrive and other cloud folders are listed without downloading files), updates them
+incrementally from the NTFS change journal, and stores the results locally. Storage Explorer (list or
+treemap), Large Files, File Categories, Search and Scan History (with comparison) read those results,
+and any list can be exported as CSV, JSON, HTML or PDF. Items can be set aside in a review queue;
+cleanup itself is not implemented yet. See [docs/17-feature-checklist.md](docs/17-feature-checklist.md).
 
 FreeAll is free and open source under the [MIT licence](LICENSE).
 
@@ -61,5 +63,6 @@ src/FreeAll.Desktop/bin/Debug/net10.0-windows/FreeAll.exe --capture-screens <fol
 ```
 
 Renders every page in light and dark themes to PNG files and exits. Add `--capture-scan <path>` to
-scan a folder or drive first (metrics go to `metrics.txt`), and `--data-dir <folder>` to use a separate
-data folder instead of `%LocalAppData%\FreeAll`.
+scan a folder or drive first, followed by an incremental update and a name search (metrics go to
+`metrics.txt`), and `--data-dir <folder>` to use a separate data folder instead of
+`%LocalAppData%\FreeAll`. Quote a path that contains spaces.

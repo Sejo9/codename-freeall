@@ -5,32 +5,52 @@ using FreeAll.Application.Scanning;
 using FreeAll.Core.Classification;
 using FreeAll.Core.Scanning;
 using FreeAll.Core.Volumes;
+using FreeAll.Scanner.Journal;
 using Microsoft.Win32.SafeHandles;
 
 namespace FreeAll.Scanner.Enumeration;
 
-/// <summary>One run of <see cref="WindowsVolumeScanner"/> over one scope.</summary>
+/// <summary>
+/// One run of <see cref="WindowsVolumeScanner"/> over one scope: a full scan, or an incremental update
+/// that lists again only the folders a baseline session needs refreshed.
+/// </summary>
 internal sealed class VolumeScan : IDisposable
 {
     private const int ListingBufferSize = 64 * 1024;
     private const long MaxFileTime = 2650467743999999999; // DateTime.MaxValue as FILETIME
 
     private readonly VolumeScanRequest _request;
+    private readonly VolumeRescanRequest? _rescan;
     private readonly ChannelWriter<ScanBatch> _output;
     private readonly ScanProgress _progress;
     private readonly CancellationToken _userCancellation;
     private readonly CancellationTokenSource _stop;
-    private readonly DirectoryFrontier _frontier;
+    private readonly Lock _removedGate = new();
+    private readonly HashSet<string> _removedPaths = new(StringComparer.Ordinal);
 
+    private DirectoryFrontier _frontier;
     private int _nextKey = 1;
+    private int _relisted;
+    private int _peakFrontier;
     private uint _volumeSerial;
     private volatile bool _volumeLost;
     private volatile bool _outputClosed;
     private int _volumeLostError;
 
     public VolumeScan(VolumeScanRequest request, ChannelWriter<ScanBatch> output, ScanProgress progress, CancellationToken cancellationToken)
+        : this(request, null, output, progress, cancellationToken)
+    {
+    }
+
+    public VolumeScan(VolumeRescanRequest rescan, ChannelWriter<ScanBatch> output, ScanProgress progress, CancellationToken cancellationToken)
+        : this(rescan.Scan, rescan, output, progress, cancellationToken)
+    {
+    }
+
+    private VolumeScan(VolumeScanRequest request, VolumeRescanRequest? rescan, ChannelWriter<ScanBatch> output, ScanProgress progress, CancellationToken cancellationToken)
     {
         _request = request;
+        _rescan = rescan;
         _output = output;
         _progress = progress;
         _userCancellation = cancellationToken;
@@ -40,7 +60,10 @@ internal sealed class VolumeScan : IDisposable
 
     public bool UsesExtendedInfo { get; private set; } = true;
 
-    public int PeakFrontier => _frontier.Peak;
+    public int PeakFrontier => Math.Max(_peakFrontier, _frontier.Peak);
+
+    /// <summary>Baseline folders listed again by an incremental update.</summary>
+    public int RelistedCount => Volatile.Read(ref _relisted);
 
     public void Dispose()
     {
@@ -48,7 +71,9 @@ internal sealed class VolumeScan : IDisposable
         _stop.Dispose();
     }
 
-    public async Task<VolumeScanResult> RunAsync()
+    public Task<VolumeScanResult> RunAsync() => _rescan is null ? RunFullAsync() : RunRescanAsync(_rescan);
+
+    private async Task<VolumeScanResult> RunFullAsync()
     {
         var rootPath = _request.RootPath;
         if (_request.Exclusions.CoversPath(rootPath))
@@ -62,42 +87,74 @@ internal sealed class VolumeScan : IDisposable
                 : new VolumeScanResult(ScanTermination.Cancelled);
         }
 
-        if (OpenRoot(rootPath) is { } failure)
+        // The checkpoint is taken before anything is listed, so changes made during the scan are replayed
+        // by the next incremental update rather than missed.
+        if (OpenRoot(rootPath, pushRoot: true, out var checkpoint) is { } failure)
         {
             return failure;
         }
 
-        var workers = new Task[_request.Options.WorkerCount];
-        for (var i = 0; i < workers.Length; i++)
+        await RunWorkersAsync().ConfigureAwait(false);
+        return Result() with { Checkpoint = checkpoint };
+    }
+
+    /// <summary>
+    /// Lists the targets again one depth level at a time, shallowest first. A level finishes (including
+    /// any new subtrees found in it) before the next starts, so a folder removed by its parent's new
+    /// listing is skipped instead of being listed at a path that no longer holds it.
+    /// </summary>
+    private async Task<VolumeScanResult> RunRescanAsync(VolumeRescanRequest rescan)
+    {
+        if (OpenRoot(_request.RootPath, pushRoot: false, out _) is { } failure)
         {
-            workers[i] = Task.Run(WorkerAsync);
+            return failure;
         }
 
-        await Task.WhenAll(workers).ConfigureAwait(false);
-
-        // Anything still waiting was found but never listed: record it so totals above it are marked incomplete.
-        var remaining = _frontier.Drain();
-        if (remaining.Count > 0)
+        _nextKey = rescan.FirstNewKey - 1;
+        var levels = rescan.Targets.GroupBy(t => t.Depth).OrderBy(g => g.Key).ToList();
+        for (var i = 0; i < levels.Count; i++)
         {
-            var batch = new ScanBatch();
-            foreach (var pending in remaining)
+            if (_stop.IsCancellationRequested)
             {
-                batch.Directories.Add(Record(pending, DirectoryScanState.NotScanned, default));
-                _progress.AddNotScanned();
-                if (batch.Count >= _request.Options.BatchSize && !await TryWriteAsync(batch).ConfigureAwait(false))
-                {
-                    break;
-                }
-
-                if (batch.Count >= _request.Options.BatchSize)
-                {
-                    batch = new ScanBatch();
-                }
+                await MarkStaleAsync(levels.Skip(i).SelectMany(l => l)).ConfigureAwait(false);
+                break;
             }
 
-            await TryWriteAsync(batch).ConfigureAwait(false);
+            _peakFrontier = Math.Max(_peakFrontier, _frontier.Peak);
+            _frontier.Dispose();
+            _frontier = new DirectoryFrontier(_request.Options.WorkerCount);
+
+            var batch = new ScanBatch();
+            foreach (var target in levels[i])
+            {
+                if (IsRemoved(target.RelativePath))
+                {
+                    continue;
+                }
+
+                if (target.Depth > _request.Options.MaxDepth)
+                {
+                    batch.Directories.Add(Record(FromBaseline(target, isRelist: false), DirectoryScanState.DepthLimit, default));
+                    AddIssue(batch, new ScanIssue(target.Key, target.RelativePath, "List folder", 0, ScanIssueKind.DepthLimit));
+                    continue;
+                }
+
+                _frontier.Push(FromBaseline(target, isRelist: true));
+            }
+
+            if (!await TryWriteAsync(batch).ConfigureAwait(false))
+            {
+                continue; // Stopping; the next iteration marks what is left as stale.
+            }
+
+            await RunWorkersAsync().ConfigureAwait(false);
         }
 
+        return Result();
+    }
+
+    private VolumeScanResult Result()
+    {
         if (_volumeLost)
         {
             return new VolumeScanResult(ScanTermination.VolumeUnavailable, "The drive stopped responding or was disconnected.", _volumeLostError);
@@ -108,9 +165,69 @@ internal sealed class VolumeScan : IDisposable
             : new VolumeScanResult(ScanTermination.Finished);
     }
 
-    /// <summary>Validates the scope root and decides which directory information class the file system supports.</summary>
-    private VolumeScanResult? OpenRoot(string rootPath)
+    private async Task RunWorkersAsync()
     {
+        var workers = new Task[_request.Options.WorkerCount];
+        for (var i = 0; i < workers.Length; i++)
+        {
+            workers[i] = Task.Run(WorkerAsync);
+        }
+
+        await Task.WhenAll(workers).ConfigureAwait(false);
+
+        // Anything still waiting was found but never listed: record it so totals above it are marked incomplete.
+        var remaining = _frontier.Drain();
+        if (remaining.Count == 0)
+        {
+            return;
+        }
+
+        var batch = new ScanBatch();
+        foreach (var pending in remaining)
+        {
+            if (pending.IsRelist)
+            {
+                batch.StaleDirectories.Add(pending.Key);
+            }
+            else
+            {
+                batch.Directories.Add(Record(pending, DirectoryScanState.NotScanned, default));
+            }
+
+            _progress.AddNotScanned();
+            if (batch.Count >= _request.Options.BatchSize)
+            {
+                if (!await TryWriteAsync(batch).ConfigureAwait(false))
+                {
+                    return;
+                }
+
+                batch = new ScanBatch();
+            }
+        }
+
+        await TryWriteAsync(batch).ConfigureAwait(false);
+    }
+
+    private async Task MarkStaleAsync(IEnumerable<BaselineDirectory> targets)
+    {
+        var batch = new ScanBatch();
+        foreach (var target in targets.Where(t => !IsRemoved(t.RelativePath)))
+        {
+            batch.StaleDirectories.Add(target.Key);
+            _progress.AddNotScanned();
+        }
+
+        await TryWriteAsync(batch).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Validates the scope root, decides which directory information class the file system supports and
+    /// reads the change journal position.
+    /// </summary>
+    private VolumeScanResult? OpenRoot(string rootPath, bool pushRoot, out JournalCheckpoint? checkpoint)
+    {
+        checkpoint = null;
         using var handle = OpenDirectory(VolumePath.ToNativePath(_request.Volume, rootPath));
         if (handle.IsInvalid)
         {
@@ -129,25 +246,36 @@ internal sealed class VolumeScan : IDisposable
             return new VolumeScanResult(ScanTermination.RootUnavailable, "The scan location isn't a folder.");
         }
 
+        var rootTag = 0u;
         if ((info.FileAttributes & FileSystemNative.FileAttributeReparsePoint) != 0)
         {
-            return new VolumeScanResult(ScanTermination.RootUnavailable, "The scan location is a link or reparse point. FreeAll doesn't follow those.");
+            rootTag = ReparseTagOf(handle);
+            if (!ReparsePoints.IsListedDirectory(rootTag))
+            {
+                return new VolumeScanResult(ScanTermination.RootUnavailable, "The scan location is a link or reparse point. FreeAll doesn't follow those.");
+            }
         }
 
         _volumeSerial = info.VolumeSerialNumber;
         UsesExtendedInfo = SupportsExtendedInfo(handle);
+        checkpoint = UsnChangeJournal.TryGetCheckpoint(handle);
 
-        var fileIndex = ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow;
-        _frontier.Push(new PendingDirectory(
-            1,
-            null,
-            VolumePath.NameOf(rootPath),
-            rootPath,
-            0,
-            (FileAttributes)info.FileAttributes,
-            fileIndex == 0 ? null : new UInt128(0, fileIndex),
-            ToUtc(info.CreationTime),
-            ToUtc(info.LastWriteTime)));
+        if (pushRoot)
+        {
+            var fileIndex = ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow;
+            _frontier.Push(new PendingDirectory(
+                1,
+                null,
+                VolumePath.NameOf(rootPath),
+                rootPath,
+                0,
+                (FileAttributes)info.FileAttributes,
+                fileIndex == 0 ? null : new UInt128(0, fileIndex),
+                ToUtc(info.CreationTime),
+                ToUtc(info.LastWriteTime),
+                rootTag));
+        }
+
         return null;
     }
 
@@ -178,12 +306,21 @@ internal sealed class VolumeScan : IDisposable
             or FileSystemNative.ErrorInvalidFunction);
     }
 
+    private static unsafe uint ReparseTagOf(SafeFileHandle handle)
+    {
+        FileSystemNative.AttributeTagInfo info;
+        return FileSystemNative.GetFileInformationByHandleEx(handle, FileSystemNative.FileAttributeTagInfo, &info, (uint)sizeof(FileSystemNative.AttributeTagInfo))
+            ? info.ReparseTag
+            : 0;
+    }
+
     private async Task WorkerAsync()
     {
         var worker = new WorkerState(_request.Options.BatchSize);
+        var frontier = _frontier;
         try
         {
-            while (await _frontier.TakeAsync(_stop.Token).ConfigureAwait(false) is { } directory)
+            while (await frontier.TakeAsync(_stop.Token).ConfigureAwait(false) is { } directory)
             {
                 try
                 {
@@ -191,7 +328,7 @@ internal sealed class VolumeScan : IDisposable
                 }
                 finally
                 {
-                    _frontier.Complete();
+                    frontier.Complete();
                 }
 
                 if (worker.Batch.Count >= _request.Options.BatchSize && !await FlushAsync(worker).ConfigureAwait(false))
@@ -202,7 +339,7 @@ internal sealed class VolumeScan : IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Cancelled, the volume was lost, or the output closed. Pending directories are drained by RunAsync.
+            // Cancelled, the volume was lost, or the output closed. Pending directories are drained by RunWorkersAsync.
         }
         catch (Exception) when (StopAll())
         {
@@ -227,33 +364,61 @@ internal sealed class VolumeScan : IDisposable
         using var handle = OpenDirectory(VolumePath.ToNativePath(_request.Volume, directory.RelativePath));
         if (handle.IsInvalid)
         {
-            RecordOpenFailure(directory, Marshal.GetLastPInvokeError(), "Open folder", worker.Batch);
+            await RecordOpenFailureAsync(directory, Marshal.GetLastPInvokeError(), "Open folder", worker.Batch).ConfigureAwait(false);
             return;
         }
 
-        if (directory.Depth > 0)
+        var record = directory;
+        if (directory.Depth > 0 || directory.IsRelist)
         {
             if (!FileSystemNative.GetFileInformationByHandle(handle, out var info))
             {
-                RecordOpenFailure(directory, Marshal.GetLastPInvokeError(), "Read folder information", worker.Batch);
+                await RecordOpenFailureAsync(directory, Marshal.GetLastPInvokeError(), "Read folder information", worker.Batch).ConfigureAwait(false);
                 return;
             }
 
-            // The entry was an ordinary directory when its parent was listed. If it has been replaced by a
-            // link since then, the handle refers to the link itself (FILE_FLAG_OPEN_REPARSE_POINT): skip it.
+            // The entry was an ordinary directory (or a cloud folder) when its parent was listed. If it has
+            // been replaced by a link since then, the handle refers to the link itself
+            // (FILE_FLAG_OPEN_REPARSE_POINT): skip it.
             if ((info.FileAttributes & FileSystemNative.FileAttributeReparsePoint) != 0)
             {
-                worker.Batch.Directories.Add(Record(directory with { Attributes = (FileAttributes)info.FileAttributes }, DirectoryScanState.ReparsePoint, default));
-                _progress.AddReparsePointSkipped();
-                return;
+                var tag = ReparseTagOf(handle);
+                if (!ReparsePoints.IsListedDirectory(tag))
+                {
+                    await ForgetContentsAsync(directory, worker.Batch).ConfigureAwait(false);
+                    worker.Batch.Directories.Add(Record(directory with { Attributes = (FileAttributes)info.FileAttributes }, DirectoryScanState.ReparsePoint, default) with { ReparseTag = tag });
+                    _progress.AddReparsePointSkipped();
+                    return;
+                }
             }
 
             if (info.VolumeSerialNumber != _volumeSerial)
             {
+                await ForgetContentsAsync(directory, worker.Batch).ConfigureAwait(false);
                 worker.Batch.Directories.Add(Record(directory, DirectoryScanState.Failed, default));
                 AddIssue(worker.Batch, new ScanIssue(directory.Key, directory.RelativePath, "Open folder", 0, ScanIssueKind.OtherVolume));
                 return;
             }
+
+            if (directory.IsRelist)
+            {
+                // The baseline's copy of a changed folder's metadata may be stale; its own handle is current.
+                var fileIndex = ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow;
+                record = directory with
+                {
+                    Attributes = (FileAttributes)info.FileAttributes,
+                    CreatedUtc = ToUtc(info.CreationTime),
+                    ModifiedUtc = ToUtc(info.LastWriteTime),
+                    FileId = directory.FileId is { } id && (id >> 64) != 0 ? id : fileIndex == 0 ? null : new UInt128(0, fileIndex),
+                };
+            }
+        }
+
+        RelistState? relist = null;
+        if (directory.IsRelist)
+        {
+            worker.Batch.ClearedDirectories.Add(directory.Key);
+            relist = new RelistState(await _rescan!.Baseline.GetSubdirectoriesAsync(directory.Key, CancellationToken.None).ConfigureAwait(false));
         }
 
         var totals = default(DirectoryTotals);
@@ -288,7 +453,7 @@ internal sealed class VolumeScan : IDisposable
                 break;
             }
 
-            if (!ParseListing(directory, location, worker, ref totals))
+            if (!ParseListing(directory, location, worker, relist, ref totals))
             {
                 AddIssue(worker.Batch, new ScanIssue(directory.Key, directory.RelativePath, "List folder", 0, ScanIssueKind.Other));
                 state = DirectoryScanState.Incomplete;
@@ -303,8 +468,23 @@ internal sealed class VolumeScan : IDisposable
             }
         }
 
-        worker.Batch.Directories.Add(Record(directory, state, totals));
+        // Known subfolders missing from a complete new listing are gone (deleted, renamed or moved away).
+        // After an incomplete listing nothing can be concluded, so they are kept.
+        if (relist is not null && state == DirectoryScanState.Scanned)
+        {
+            foreach (var gone in relist.Unseen())
+            {
+                worker.Batch.RemovedDirectories.Add(gone.Key);
+                MarkRemoved(gone.RelativePath);
+            }
+        }
+
+        worker.Batch.Directories.Add(Record(record, state, totals));
         _progress.AddDirectory(totals.FileCount, totals.LogicalBytes, totals.AllocatedBytes);
+        if (directory.IsRelist)
+        {
+            Interlocked.Increment(ref _relisted);
+        }
     }
 
     private static unsafe bool ReadListing(SafeFileHandle handle, int infoClass, byte[] buffer)
@@ -316,7 +496,7 @@ internal sealed class VolumeScan : IDisposable
     }
 
     /// <returns>False if the buffer is malformed.</returns>
-    private unsafe bool ParseListing(PendingDirectory directory, StorageLocation location, WorkerState worker, ref DirectoryTotals totals)
+    private unsafe bool ParseListing(PendingDirectory directory, StorageLocation location, WorkerState worker, RelistState? relist, ref DirectoryTotals totals)
     {
         var buffer = worker.Buffer;
         var nameOffset = UsesExtendedInfo ? FileSystemNative.ExtdNameOffset : FileSystemNative.BothNameOffset;
@@ -386,7 +566,7 @@ internal sealed class VolumeScan : IDisposable
 
                     if ((attributes & FileSystemNative.FileAttributeDirectory) != 0)
                     {
-                        AddSubdirectory(directory, name.ToString(), entryInfo, worker.Batch);
+                        AddSubdirectory(directory, name.ToString(), entryInfo, worker.Batch, relist);
                     }
                     else
                     {
@@ -404,15 +584,23 @@ internal sealed class VolumeScan : IDisposable
         }
     }
 
-    private void AddSubdirectory(PendingDirectory parent, string name, in EntryInfo entry, ScanBatch batch)
+    private void AddSubdirectory(PendingDirectory parent, string name, in EntryInfo entry, ScanBatch batch, RelistState? relist)
     {
+        // An incremental update keeps a subfolder that is still the same folder under the same name; if it
+        // changed inside, it is one of the update's own targets.
+        if (relist?.TryMatch(name, entry.FileId) == true)
+        {
+            return;
+        }
+
         var key = Interlocked.Increment(ref _nextKey);
         var path = VolumePath.Combine(parent.RelativePath, name);
-        var child = new PendingDirectory(key, parent.Key, name, path, parent.Depth + 1, entry.Attributes, entry.FileId, entry.CreatedUtc, entry.ModifiedUtc);
+        var isReparse = entry.ReparseTag != 0 || (entry.Attributes & FileAttributes.ReparsePoint) != 0;
+        var child = new PendingDirectory(key, parent.Key, name, path, parent.Depth + 1, entry.Attributes, entry.FileId, entry.CreatedUtc, entry.ModifiedUtc, isReparse ? entry.ReparseTag : 0);
 
-        if (entry.ReparseTag != 0 || (entry.Attributes & FileAttributes.ReparsePoint) != 0)
+        if (isReparse && !ReparsePoints.IsListedDirectory(entry.ReparseTag))
         {
-            batch.Directories.Add(Record(child, DirectoryScanState.ReparsePoint, default) with { ReparseTag = entry.ReparseTag });
+            batch.Directories.Add(Record(child, DirectoryScanState.ReparsePoint, default));
             _progress.AddReparsePointSkipped();
         }
         else if (_request.Exclusions.IsExcluded(path))
@@ -459,22 +647,84 @@ internal sealed class VolumeScan : IDisposable
         }
     }
 
-    private void RecordOpenFailure(PendingDirectory directory, int error, string operation, ScanBatch batch)
+    private async Task RecordOpenFailureAsync(PendingDirectory directory, int error, string operation, ScanBatch batch)
     {
         var kind = ScanIssueKinds.FromWin32Error(error);
-        AddIssue(batch, new ScanIssue(kind == ScanIssueKind.NotFound ? null : directory.Key, directory.RelativePath, operation, error, kind));
-
         if (kind == ScanIssueKind.NotFound)
         {
+            if (directory.IsRelist)
+            {
+                // Gone since the baseline: remove it with everything below it.
+                batch.RemovedDirectories.Add(directory.Key);
+                MarkRemoved(directory.RelativePath);
+            }
+            else
+            {
+                AddIssue(batch, new ScanIssue(null, directory.RelativePath, operation, error, kind));
+            }
+
             return; // Removed since its parent was listed; there is nothing left to record.
         }
 
+        AddIssue(batch, new ScanIssue(directory.Key, directory.RelativePath, operation, error, kind));
         if (kind == ScanIssueKind.VolumeUnavailable)
         {
             MarkVolumeLost(error);
+            if (directory.IsRelist)
+            {
+                batch.StaleDirectories.Add(directory.Key); // Nothing is known; keep the baseline's rows, marked incomplete.
+                return;
+            }
         }
 
+        await ForgetContentsAsync(directory, batch).ConfigureAwait(false);
         batch.Directories.Add(Record(directory, kind == ScanIssueKind.AccessDenied ? DirectoryScanState.AccessDenied : DirectoryScanState.Failed, default));
+    }
+
+    /// <summary>For a folder an update lists again but can no longer read: drops the baseline's now-unverified contents.</summary>
+    private async Task ForgetContentsAsync(PendingDirectory directory, ScanBatch batch)
+    {
+        if (!directory.IsRelist)
+        {
+            return;
+        }
+
+        batch.ClearedDirectories.Add(directory.Key);
+        foreach (var child in await _rescan!.Baseline.GetSubdirectoriesAsync(directory.Key, CancellationToken.None).ConfigureAwait(false))
+        {
+            batch.RemovedDirectories.Add(child.Key);
+            MarkRemoved(child.RelativePath);
+        }
+    }
+
+    private void MarkRemoved(string relativePath)
+    {
+        lock (_removedGate)
+        {
+            _removedPaths.Add(relativePath);
+        }
+    }
+
+    /// <summary>True when the path, or a folder above it, was removed earlier in this update.</summary>
+    private bool IsRemoved(string relativePath)
+    {
+        lock (_removedGate)
+        {
+            if (_removedPaths.Count == 0)
+            {
+                return false;
+            }
+
+            for (string? path = relativePath; path is not null; path = VolumePath.ParentOf(path))
+            {
+                if (_removedPaths.Contains(path))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     private void AddIssue(ScanBatch batch, ScanIssue issue)
@@ -531,6 +781,19 @@ internal sealed class VolumeScan : IDisposable
         }
     }
 
+    private static PendingDirectory FromBaseline(BaselineDirectory target, bool isRelist) => new(
+        target.Key,
+        target.ParentKey,
+        target.Name,
+        target.RelativePath,
+        target.Depth,
+        target.Attributes,
+        target.FileId,
+        target.CreatedUtc,
+        target.ModifiedUtc,
+        0,
+        isRelist);
+
     private static ScannedDirectory Record(PendingDirectory directory, DirectoryScanState state, DirectoryTotals totals) => new(
         directory.Key,
         directory.ParentKey,
@@ -539,7 +802,7 @@ internal sealed class VolumeScan : IDisposable
         directory.Depth,
         state,
         directory.Attributes,
-        0,
+        directory.ReparseTag,
         directory.FileId,
         directory.CreatedUtc,
         directory.ModifiedUtc,
@@ -575,6 +838,36 @@ internal sealed class VolumeScan : IDisposable
         public int FileCount;
         public long LogicalBytes;
         public long AllocatedBytes;
+    }
+
+    /// <summary>A baseline folder's known subfolders while it is listed again. Used by one worker only.</summary>
+    private sealed class RelistState
+    {
+        private readonly Dictionary<string, BaselineDirectory> _byName;
+        private readonly HashSet<int> _seen = [];
+
+        public RelistState(IReadOnlyList<BaselineDirectory> subdirectories)
+        {
+            _byName = new Dictionary<string, BaselineDirectory>(subdirectories.Count, StringComparer.Ordinal);
+            foreach (var subdirectory in subdirectories)
+            {
+                _byName[subdirectory.Name] = subdirectory;
+            }
+        }
+
+        /// <summary>True when a subfolder with this exact name and identity is already in the baseline.</summary>
+        public bool TryMatch(string name, UInt128? fileId)
+        {
+            if (_byName.TryGetValue(name, out var known) && known.FileId == fileId)
+            {
+                _seen.Add(known.Key);
+                return true;
+            }
+
+            return false;
+        }
+
+        public IEnumerable<BaselineDirectory> Unseen() => _byName.Values.Where(d => !_seen.Contains(d.Key));
     }
 
     /// <summary>Per-worker buffers. Nothing here is shared between workers.</summary>

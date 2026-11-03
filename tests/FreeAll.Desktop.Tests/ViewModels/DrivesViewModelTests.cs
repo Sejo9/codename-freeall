@@ -15,6 +15,7 @@ public sealed class DrivesViewModelTests
     private readonly FakeFolderPicker _picker = new();
     private readonly FakeNotifier _notifier = new();
     private readonly FakeScanCoordinator _coordinator = new();
+    private readonly FakeVolumeMonitor _monitor = new();
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -77,7 +78,7 @@ public sealed class DrivesViewModelTests
         await viewModel.OnNavigatedToAsync(Ct);
 
         Assert.Contains("Default scan: C:", viewModel.ScopeText, StringComparison.Ordinal);
-        Assert.Contains("reparse points are not followed", viewModel.ScopeText, StringComparison.Ordinal);
+        Assert.Contains("Links (junctions, symbolic links, mount points) are not followed", viewModel.ScopeText, StringComparison.Ordinal);
         await viewModel.ScanDefaultDrivesCommand.ExecuteAsync(null);
 
         var target = Assert.Single(Assert.Single(_coordinator.Runs));
@@ -189,7 +190,49 @@ public sealed class DrivesViewModelTests
     }
 
     private DrivesViewModel Create() =>
-        new(_discovery, _store, _index, _exclusions, _resolver, _picker, _notifier, TestServices.Activity(_coordinator, _notifier), NullLogger<DrivesViewModel>.Instance);
+        new(_discovery, _store, _index, _exclusions, _resolver, _picker, _notifier, TestServices.Activity(_coordinator, _notifier), _monitor, NullLogger<DrivesViewModel>.Instance);
+
+    [Fact]
+    public async Task Update_asks_for_an_incremental_scan_and_needs_a_recorded_checkpoint()
+    {
+        _discovery.Inventory = new VolumeInventory([FakeVolumeDiscovery.Volume("System", DriveKind.Fixed, @"C:\") with { Id = FakeScanIndex.VolumeC }], [], []);
+        _index.Sessions.Clear();
+        _index.Sessions.Add(FakeScanIndex.Session(1, ScanState.Completed));
+        var viewModel = Create();
+        await viewModel.OnNavigatedToAsync(Ct);
+        var drive = Assert.Single(viewModel.Drives);
+        Assert.False(drive.CanUpdate); // the sample scan has no checkpoint
+        Assert.False(viewModel.UpdateDriveCommand.CanExecute(drive));
+
+        _index.Sessions[0] = FakeScanIndex.Session(1, ScanState.Completed) with { Checkpoint = new JournalCheckpoint(1, 2) };
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        drive = Assert.Single(viewModel.Drives);
+        Assert.True(drive.CanUpdate);
+
+        await viewModel.UpdateDriveCommand.ExecuteAsync(drive);
+        await viewModel.UpdateDefaultDrivesCommand.ExecuteAsync(null);
+
+        Assert.All(_coordinator.Runs, run => Assert.Equal(ScanKind.Incremental, Assert.Single(run).Kind));
+        Assert.Equal(2, _coordinator.Runs.Count);
+        Assert.Contains("Update re-reads only folders", viewModel.ScopeText, StringComparison.Ordinal);
+        Assert.Contains("Cloud folders such as OneDrive are listed", viewModel.ScopeText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_drive_change_refreshes_the_list_once_the_page_has_loaded()
+    {
+        var viewModel = Create();
+        _monitor.Raise(); // not loaded yet: ignored
+        Assert.Equal(0, _discovery.Calls);
+
+        await viewModel.OnNavigatedToAsync(Ct);
+        _discovery.Inventory = new VolumeInventory([FakeVolumeDiscovery.Volume("USB", DriveKind.Removable, @"E:\")], [], []);
+        _monitor.Raise();
+        await viewModel.PendingRefresh;
+
+        Assert.Equal(2, _discovery.Calls);
+        Assert.Equal("USB (E:)", Assert.Single(viewModel.Drives).Title);
+    }
 
     private static Application.Scanning.ScanProgressSnapshot Snapshot() =>
         new(FakeScanIndex.VolumeC, "C:", 1, 1, Application.Scanning.ScanPhase.Scanning, 10, 100, 1000, 0, 0, @"\Users", TimeSpan.FromSeconds(3));

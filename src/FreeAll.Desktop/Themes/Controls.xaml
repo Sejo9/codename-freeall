@@ -225,6 +225,21 @@
   </Style>
 
   <!-- Text cells that may be long. No secondary colour: it loses contrast on the selected-row accent. -->
+  <!-- Hint shown over an empty text box. Tag names the box: Tag="{Binding ElementName=Box}". Not read by screen
+       readers, so each box also has an automation name. -->
+  <Style x:Key="Placeholder" TargetType="TextBlock" BasedOn="{StaticResource Typography.Body}">
+    <Setter Property="Margin" Value="11,0,0,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Foreground" Value="{DynamicResource Color.TextSecondary}" />
+    <Setter Property="Visibility" Value="Collapsed" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Tag.Text.Length, RelativeSource={RelativeSource Self}}" Value="0">
+        <Setter Property="Visibility" Value="Visible" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
   <Style x:Key="Cell.Secondary" TargetType="TextBlock">
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="TextTrimming" Value="CharacterEllipsis" />

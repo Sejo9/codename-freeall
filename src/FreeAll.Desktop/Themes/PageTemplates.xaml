@@ -34,4 +34,12 @@
     <views:ScanHistoryPage />
   </DataTemplate>
 
+  <DataTemplate DataType="{x:Type index:SearchViewModel}">
+    <views:SearchPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type index:ReviewQueueViewModel}">
+    <views:ReviewQueuePage />
+  </DataTemplate>
+
 </ResourceDictionary>

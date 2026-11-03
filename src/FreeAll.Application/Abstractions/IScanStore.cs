@@ -32,11 +32,32 @@ public interface IScanStore
     Task<int> RecoverInterruptedSessionsAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Removes detailed rows of older sessions for the volume. Keeps the newest session with an index and,
-    /// when that one is not complete, the newest complete one as well. Session summaries and errors are kept.
+    /// Applies the retention policy to the volume's sessions. Detailed rows are kept for the newest
+    /// <see cref="RetentionPolicy.DetailedScansPerDrive"/> browsable sessions and for the newest complete
+    /// one; older detail is removed in bounded transactions. Name indexes are kept only for the newest
+    /// browsable session. When <see cref="RetentionPolicy.HistoryDays"/> is set, older summaries and
+    /// their errors are deleted too, except the volume's newest session and any session with detail kept.
     /// </summary>
-    /// <returns>The number of sessions whose detail was removed.</returns>
-    Task<int> PruneInventoriesAsync(VolumeId volume, CancellationToken cancellationToken);
+    /// <returns>The number of sessions whose detail or summary was removed.</returns>
+    Task<int> PruneInventoriesAsync(VolumeId volume, RetentionPolicy policy, CancellationToken cancellationToken);
+
+    /// <summary>Applies <see cref="PruneInventoriesAsync"/> to every volume with stored sessions.</summary>
+    Task<int> ApplyRetentionAsync(RetentionPolicy policy, CancellationToken cancellationToken);
+
+    /// <summary>The newest finished session of the volume whose detailed results are kept and could be updated incrementally.</summary>
+    Task<ScanSessionSummary?> GetUpdateBaseAsync(VolumeId volume, CancellationToken cancellationToken);
+
+    /// <summary>Read access to a stored session's folders, for an incremental update.</summary>
+    IScanBaseline OpenBaseline(long sessionId);
+
+    /// <summary>Copies every folder and file row of one session into another (an incremental update's starting point), in bounded transactions.</summary>
+    Task CopyInventoryAsync(long fromSessionId, long toSessionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Builds the session's full-text index of file and folder names (F-017) in bounded transactions.
+    /// Search works without it only for sessions that have one.
+    /// </summary>
+    Task BuildSearchIndexAsync(long sessionId, CancellationToken cancellationToken);
 }
 
 /// <summary>Read-only queries over stored sessions and the index. Results are bounded by explicit limits.</summary>
@@ -67,12 +88,28 @@ public interface IScanIndex
     Task<IReadOnlyList<IndexEntry>> GetLargestFilesAsync(LargeFileQuery query, CancellationToken cancellationToken);
 
     /// <summary>Largest folders by recursive allocated size, excluding scan roots.</summary>
-    Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, CancellationToken cancellationToken);
+    /// <param name="sessionIds">Sessions to search; results are merged.</param>
+    /// <param name="limit">Maximum results.</param>
+    /// <param name="pathContains">Only folders whose path contains this text (case-insensitive for A to Z), when set.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, string? pathContains, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CategoryTotal>> GetCategoryTotalsAsync(long sessionId, CancellationToken cancellationToken);
 
     /// <summary>Stored errors in the order they occurred.</summary>
     Task<IReadOnlyList<ScanIssueRecord>> GetIssuesAsync(long sessionId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Searches file and folder names through each session's name index (F-017).</summary>
+    Task<SearchResult> SearchAsync(SearchQuery query, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Compares two sessions of the same volume: category totals always, and folder sizes when both
+    /// still have detailed results (folders up to <paramref name="maxDepth"/> below the root).
+    /// </summary>
+    Task<SessionComparison> CompareAsync(long olderSessionId, long newerSessionId, int folderLimit, int maxDepth, CancellationToken cancellationToken);
+
+    /// <summary>Streams every folder and file of a session, folders first, for export. The connection stays open while enumerating.</summary>
+    IAsyncEnumerable<IndexEntry> EnumerateEntriesAsync(long sessionId, CancellationToken cancellationToken);
 }
 
 /// <summary>User-chosen scan exclusions (DEC-017).</summary>

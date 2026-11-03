@@ -24,7 +24,10 @@ public enum ReparsePointKind
     Other,
 }
 
-/// <summary>Reparse tag interpretation. FreeAll never follows reparse points by default (PR-003).</summary>
+/// <summary>
+/// Reparse tag interpretation. FreeAll never follows links (PR-003). Cloud placeholder folders are
+/// real folders on the same volume, not links, and are listed (BLK-017).
+/// </summary>
 public static class ReparsePoints
 {
     public const uint MountPointTag = 0xA0000003;
@@ -54,4 +57,11 @@ public static class ReparsePoints
 
     /// <summary>True for links that redirect to another location (junctions, mount points, symbolic links).</summary>
     public static bool IsNameSurrogate(uint tag) => (tag & NameSurrogateBit) != 0;
+
+    /// <summary>
+    /// True when a directory with this reparse tag is listed like an ordinary folder: only cloud
+    /// placeholders (for example OneDrive Files On-Demand), which hold their own contents on the same
+    /// volume. Every other tag, and every link, is recorded and not followed.
+    /// </summary>
+    public static bool IsListedDirectory(uint tag) => Classify(tag) == ReparsePointKind.CloudPlaceholder && !IsNameSurrogate(tag);
 }

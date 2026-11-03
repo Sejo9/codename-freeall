@@ -33,14 +33,53 @@
                 IsEnabled="{Binding ShowsFolders, Converter={StaticResource InverseBool}}"
                 ItemsSource="{Binding MinimumSizes}"
                 SelectedItem="{Binding SelectedMinimumSize}" />
+      <StackPanel Margin="0,0,8,8" Orientation="Horizontal" Visibility="{Binding IsCustomSize, Converter={StaticResource BoolToVisibility}}">
+        <TextBox Width="80"
+                 VerticalContentAlignment="Center"
+                 AutomationProperties.Name="Custom minimum size in megabytes"
+                 Text="{Binding CustomMinimumMegabytes, UpdateSourceTrigger=PropertyChanged}">
+          <TextBox.InputBindings>
+            <KeyBinding Key="Enter" Command="{Binding ApplyFiltersCommand}" />
+          </TextBox.InputBindings>
+        </TextBox>
+        <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" Style="{StaticResource Typography.Body}" Text="MB or more" />
+      </StackPanel>
+      <ComboBox MinWidth="190"
+                Margin="0,0,8,8"
+                AutomationProperties.Name="Last modified"
+                DisplayMemberPath="Label"
+                IsEnabled="{Binding ShowsFolders, Converter={StaticResource InverseBool}}"
+                ItemsSource="{Binding Ages}"
+                SelectedItem="{Binding SelectedAge}"
+                ToolTip="Modified times can be copied or unreliable, so this is a hint rather than proof that a file isn't used." />
+      <Grid Margin="0,0,8,8">
+      <TextBox x:Name="PathBox"
+               Width="220"
+               VerticalContentAlignment="Center"
+               AutomationProperties.HelpText="Only items whose folder path contains this text. Press Enter to apply."
+               AutomationProperties.Name="Folder path contains"
+               Text="{Binding PathFilter, UpdateSourceTrigger=PropertyChanged}"
+               ToolTip="Only items whose folder path contains this text, for example Downloads. Press Enter to apply.">
+        <TextBox.InputBindings>
+          <KeyBinding Key="Enter" Command="{Binding ApplyFiltersCommand}" />
+        </TextBox.InputBindings>
+      </TextBox>
+      <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=PathBox}" Text="Folder path contains…" />
+      </Grid>
+      <Button Margin="0,0,8,8" Command="{Binding ApplyFiltersCommand}" Content="Apply" />
     </WrapPanel>
 
     <DockPanel Grid.Row="1" Margin="0,0,0,8" Visibility="{Binding Drives.Count, Converter={StaticResource NullToVisibility}}">
+      <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" ToolTip="Save the list shown as CSV, JSON, HTML or PDF" />
+      <Button Margin="8,0,0,0" Command="{Binding AddToReviewCommand}" Content="Add to review queue" DockPanel.Dock="Right" ToolTip="Set the selected items aside to decide about later. Nothing is changed or removed." />
       <Button Margin="8,0,0,0" Command="{Binding CopyPathCommand}" Content="Copy path" DockPanel.Dock="Right" />
       <Button Margin="8,0,0,0" Command="{Binding RevealCommand}" Content="Open in File Explorer" DockPanel.Dock="Right" />
       <Button Margin="8,0,0,0" Command="{Binding ShowInExplorerCommand}" Content="Show in Storage Explorer" DockPanel.Dock="Right" />
       <StackPanel VerticalAlignment="Center">
-        <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding ResultText}" />
+        <TextBlock Style="{StaticResource Typography.Caption}">
+          <Run Text="{Binding ResultText, Mode=OneWay}" />
+          <Run Text="{Binding StatusMessage, Mode=OneWay}" />
+        </TextBlock>
         <TextBlock Style="{StaticResource Typography.Caption}"
                    Text="Folder sizes include everything inside them, so a large folder's parents are listed too. Location is context, not a sign that something is safe to remove."
                    TextWrapping="Wrap" />
@@ -79,6 +118,7 @@
                     CanUserSortColumns="False"
                     ItemsSource="{Binding Results}"
                     SelectedItem="{Binding SelectedRow}"
+                    SelectionChanged="OnSelectionChanged"
                     AutoGenerateColumns="False"
                     BorderThickness="0"
                     CanUserReorderColumns="True"
@@ -88,10 +128,19 @@
                     GridLinesVisibility="None"
                     HeadersVisibility="Column"
                     IsReadOnly="True"
-                    SelectionMode="Single"
+                    SelectionMode="Extended"
                     VirtualizingPanel.IsVirtualizing="True"
                     VirtualizingPanel.ScrollUnit="Item"
                     VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Command="{Binding RevealCommand}" Header="Open in File Explorer" />
+                <MenuItem Command="{Binding ShowInExplorerCommand}" Header="Show in Storage Explorer" />
+                <MenuItem Command="{Binding CopyPathCommand}" Header="Copy path" />
+                <Separator />
+                <MenuItem Command="{Binding AddToReviewCommand}" Header="Add to review queue" />
+              </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
               <DataGridTemplateColumn Width="*" MinWidth="200" Header="Name">
                 <DataGridTemplateColumn.CellTemplate>
@@ -108,6 +157,7 @@
               <DataGridTextColumn Width="160" MinWidth="160" Binding="{Binding CategoryText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Category" />
               <DataGridTextColumn Width="130" MinWidth="130" Binding="{Binding LocationText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Location" />
               <DataGridTextColumn ElementStyle="{StaticResource Cell.Secondary}" Width="150" MinWidth="150" Binding="{Binding Modified, StringFormat=g}" Header="Modified" />
+              <DataGridTextColumn Width="160" MinWidth="160" Binding="{Binding StatusText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Notes" />
               <DataGridTextColumn Width="320" MinWidth="200" Binding="{Binding FolderPath}" ElementStyle="{StaticResource Cell.Secondary}" Header="In folder" />
             </DataGrid.Columns>
           </DataGrid>

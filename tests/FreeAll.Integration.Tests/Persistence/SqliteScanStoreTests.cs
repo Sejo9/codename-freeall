@@ -68,7 +68,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         Assert.Equal(@"C:\", session.MountPoint);
         Assert.Equal(@"\Data", session.RootPath);
         Assert.Equal([@"\Data\Skip"], session.Exclusions);
-        Assert.Equal(ScanSessionSummary.ReparsePointsNotFollowed, session.ReparsePolicy);
+        Assert.Equal(ScanSessionSummary.LinksNotFollowedCloudListed, session.ReparsePolicy);
         Assert.Equal(6, session.DirectoryCount);
         Assert.Equal(4, session.FileCount);
         Assert.Equal(8100, session.LogicalBytes);
@@ -114,7 +114,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         Assert.Equal(@"\Data\a.txt", file.RelativePath);
         Assert.Equal(new FileClassification(FileCategory.Documents, ClassificationReason.Extension), file.Classification);
         Assert.Equal(FileAttributes.Archive | FileAttributes.Hidden, file.Attributes);
-        Assert.Equal(new UInt128(7, 42), file.FileIdentity);
+        Assert.Equal(new UInt128(7, 100), file.FileIdentity);
         Assert.Equal(new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), file.ModifiedUtc);
         Assert.NotNull(file.FileRowId);
 
@@ -149,7 +149,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         var images = await _store.GetLargestFilesAsync(new LargeFileQuery([c.Id], FileCategory.Images, 1500, 10), Ct);
         Assert.Equal(["p2.jpg"], images.Select(f => f.Name));
 
-        var folders = await _store.GetLargestFoldersAsync([c.Id], 10, Ct);
+        var folders = await _store.GetLargestFoldersAsync([c.Id], 10, null, Ct);
         Assert.DoesNotContain(folders, f => f.DirectoryKey == 1);
         Assert.Equal("Photos", folders[0].Name);
     }
@@ -187,7 +187,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         var newestPartial = await WriteSampleSessionAsync(VolumeC, ScanState.Partial);
         var otherVolume = await WriteSampleSessionAsync(VolumeD, ScanState.Partial);
 
-        Assert.Equal(1, await _store.PruneInventoriesAsync(VolumeC.Id, Ct));
+        Assert.Equal(1, await _store.PruneInventoriesAsync(VolumeC.Id, RetentionPolicy.Default, Ct));
 
         Assert.True((await _store.GetSessionAsync(completed.Id, Ct))!.HasInventory);
         Assert.False((await _store.GetSessionAsync(olderPartial.Id, Ct))!.HasInventory);
@@ -198,7 +198,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         Assert.Single(await _store.GetIssuesAsync(olderPartial.Id, 10, Ct)); // history is kept
 
         var newestComplete = await WriteSampleSessionAsync(VolumeC, ScanState.Completed);
-        Assert.Equal(2, await _store.PruneInventoriesAsync(VolumeC.Id, Ct));
+        Assert.Equal(2, await _store.PruneInventoriesAsync(VolumeC.Id, RetentionPolicy.Default, Ct));
         var browsable = await _store.GetBrowsableSessionsAsync(Ct);
         Assert.Equal([newestComplete.Id, otherVolume.Id], browsable.Select(s => s.Id));
     }
@@ -263,7 +263,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         var health = await current.InitializeAsync(Ct);
 
         Assert.Equal(DatabaseState.Ready, health.State);
-        Assert.Equal(2, health.SchemaVersion);
+        Assert.Equal(EmbeddedMigrations.Load()[^1].Version, health.SchemaVersion);
         Assert.Equal("Dark", await new SqliteUserPreferences(current).GetAsync("ui.theme", Ct));
     }
 
@@ -296,7 +296,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         await _store.WriteBatchesAsync(id, [batch], Ct);
         await _store.WriteBatchesAsync(id, [tail], Ct);
 
-        return await _store.CompleteSessionAsync(id, new SessionCompletion(state, "Sample note.", 1, 1, 1, 1), Ct);
+        return await _store.CompleteSessionAsync(id, new SessionCompletion(state, "Sample note.", 1, 1), Ct);
     }
 
     private static NewScanSession NewSession(VolumeInfo volume) => new(volume, @"\Data", [@"\Data\Skip"], 1, FileClassifier.Version);
@@ -328,7 +328,7 @@ public sealed class SqliteScanStoreTests : IDisposable
         new(key, parent, VolumePath.NameOf(path), path, depth, state, FileAttributes.Directory, 0, new UInt128(1, (ulong)key), null, null, files, bytes, files * 4096L);
 
     private static ScannedFile File(int directory, string name, string extension, long size, FileCategory category) =>
-        new(directory, name, extension, size, 4096, null, new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), null, FileAttributes.Archive, 0, new UInt128(7, 42), new FileClassification(category, ClassificationReason.Extension));
+        new(directory, name, extension, size, 4096, null, new DateTime(2024, 1, 2, 3, 4, 5, DateTimeKind.Utc), null, FileAttributes.Archive, 0, new UInt128(7, (ulong)size), new FileClassification(category, ClassificationReason.Extension));
 
     private static VolumeInfo Volume(string label, string mountPoint) =>
         new(VolumeId.FromGuid(Guid.NewGuid()), label, "NTFS", [mountPoint], DriveKind.Fixed, true, 1_000_000, 400_000);

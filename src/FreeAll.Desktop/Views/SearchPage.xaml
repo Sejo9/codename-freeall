@@ -1,0 +1,132 @@
+<UserControl x:Class="FreeAll.Desktop.Views.SearchPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             xmlns:views="clr-namespace:FreeAll.Desktop.Views"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=index:SearchViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Query and filters -->
+    <WrapPanel Grid.Row="0" Margin="0,0,0,8">
+      <TextBox x:Name="QueryBox"
+               Width="320"
+               Margin="0,0,8,8"
+               VerticalContentAlignment="Center"
+               AutomationProperties.HelpText="Each word matches the start of a word in a name. Press Enter to search."
+               AutomationProperties.Name="Search for"
+               Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}">
+        <TextBox.InputBindings>
+          <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+        </TextBox.InputBindings>
+      </TextBox>
+      <Button Margin="0,0,8,8" Command="{Binding SearchCommand}" Content="Search" Style="{StaticResource Button.Accent}" />
+      <ComboBox MinWidth="150" Margin="0,0,8,8" AutomationProperties.Name="Find" DisplayMemberPath="Label" ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope}" />
+      <ComboBox MinWidth="260" Margin="0,0,8,8" AutomationProperties.Name="Drive" DisplayMemberPath="Label" ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}" />
+      <ComboBox MinWidth="200" Margin="0,0,8,8" AutomationProperties.Name="Category" DisplayMemberPath="Label" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" />
+    </WrapPanel>
+
+    <DockPanel Grid.Row="1" Margin="0,0,0,8">
+      <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" ToolTip="Save the results shown as CSV, JSON, HTML or PDF" />
+      <Button Margin="8,0,0,0" Command="{Binding AddToReviewCommand}" Content="Add to review queue" DockPanel.Dock="Right" ToolTip="Set the selected items aside to decide about later. Nothing is changed or removed." />
+      <Button Margin="8,0,0,0" Command="{Binding CopyPathCommand}" Content="Copy path" DockPanel.Dock="Right" />
+      <Button Margin="8,0,0,0" Command="{Binding RevealCommand}" Content="Open in File Explorer" DockPanel.Dock="Right" />
+      <Button Margin="8,0,0,0" Command="{Binding ShowInExplorerCommand}" Content="Show in Storage Explorer" DockPanel.Dock="Right" />
+      <TextBlock VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" TextWrapping="Wrap">
+        <Run Text="{Binding ResultText, Mode=OneWay}" />
+        <Run Text="{Binding StatusMessage, Mode=OneWay}" />
+      </TextBlock>
+    </DockPanel>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <Border Padding="0" Style="{StaticResource Card}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <ProgressBar AutomationProperties.Name="Searching" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+          <DataGrid Grid.Row="1"
+                    AutomationProperties.Name="Search results"
+                    CanUserSortColumns="False"
+                    ItemsSource="{Binding Results}"
+                    SelectedItem="{Binding SelectedRow}"
+                    SelectionChanged="OnSelectionChanged"
+                    AutoGenerateColumns="False"
+                    BorderThickness="0"
+                    CanUserReorderColumns="True"
+                    CanUserResizeColumns="True"
+                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="True"
+                    GridLinesVisibility="None"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    SelectionMode="Extended"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.ScrollUnit="Item"
+                    VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Command="{Binding RevealCommand}" Header="Open in File Explorer" />
+                <MenuItem Command="{Binding ShowInExplorerCommand}" Header="Show in Storage Explorer" />
+                <MenuItem Command="{Binding CopyPathCommand}" Header="Copy path" />
+                <Separator />
+                <MenuItem Command="{Binding AddToReviewCommand}" Header="Add to review queue" />
+              </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Width="*" MinWidth="200" Header="Name">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate DataType="{x:Type index:IndexRowViewModel}">
+                    <StackPanel Orientation="Horizontal" ToolTip="{Binding FullPath}">
+                      <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" FontSize="14" Style="{StaticResource Icon.Entry}" Text="{Binding Glyph}" />
+                      <TextBlock VerticalAlignment="Center" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Width="100" MinWidth="100" Binding="{Binding LogicalSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="Size" />
+              <DataGridTextColumn Width="100" MinWidth="100" Binding="{Binding AllocatedSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+              <DataGridTextColumn Width="150" MinWidth="150" Binding="{Binding TypeText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Type" />
+              <DataGridTextColumn Width="140" MinWidth="140" Binding="{Binding Modified, StringFormat=g}" ElementStyle="{StaticResource Cell.Secondary}" Header="Modified" />
+              <DataGridTextColumn Width="150" MinWidth="150" Binding="{Binding StatusText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Notes" />
+              <DataGridTextColumn Width="320" MinWidth="200" Binding="{Binding FolderPath}" ElementStyle="{StaticResource Cell.Secondary}" Header="In folder" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="1" Width="320" Margin="12,0,0,0" Style="{StaticResource Card}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <views:EntryInspector DataContext="{Binding Details}" />
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Scan results couldn't be searched" />
+        <TextBlock Margin="0,4,0,8" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" />
+        <Button HorizontalAlignment="Left" Command="{Binding SearchCommand}" Content="Try again" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

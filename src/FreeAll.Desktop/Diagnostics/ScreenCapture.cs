@@ -8,8 +8,10 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Formatting;
 using FreeAll.Application.Preferences;
 using FreeAll.Application.Scanning;
+using FreeAll.Core.Scanning;
 using FreeAll.Desktop.Services;
 using FreeAll.Desktop.ViewModels;
 using FreeAll.Desktop.ViewModels.Index;
@@ -77,6 +79,43 @@ internal static class ScreenCapture
                 large.SelectedRow = large.Results[0];
                 await SettleAsync(ui);
                 Save(window, Path.Combine(directory, $"{appTheme}-large-selected.png"));
+
+                if (appTheme == AppTheme.Light)
+                {
+                    large.SetSelection(large.Results.Take(3).ToList());
+                    await large.AddToReviewCommand.ExecuteAsync(null);
+                }
+            }
+
+            shell.NavigateTo("explorer");
+            await SettleAsync(ui);
+            if (shell.CurrentPage is ExplorerViewModel map && map.CurrentFolder is not null)
+            {
+                map.IsTreemap = true;
+                await map.PendingTreemap;
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-explorer-treemap.png"));
+                map.IsTreemap = false;
+            }
+
+            var term = (shell.CurrentPage as ExplorerViewModel)?.Rows.FirstOrDefault(r => r.Name.Length >= 3)?.Name[..3] ?? "doc";
+            await shell.ShowSearchAsync(term);
+            await SettleAsync(ui);
+            Save(window, Path.Combine(directory, $"{appTheme}-search.png"));
+
+            shell.ShowReviewQueue();
+            await SettleAsync(ui);
+            Save(window, Path.Combine(directory, $"{appTheme}-review.png"));
+
+            shell.NavigateTo("history");
+            await SettleAsync(ui);
+            if (shell.CurrentPage is ScanHistoryViewModel history && history.Sessions.Count >= 2 && history.Sessions[0].Session.Volume == history.Sessions[1].Session.Volume)
+            {
+                history.SetSelection(history.Sessions.Take(2).ToList());
+                await history.CompareCommand.ExecuteAsync(null);
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-history-compare.png"));
+                history.CloseComparisonCommand.Execute(null);
             }
         }
 
@@ -133,12 +172,28 @@ internal static class ScreenCapture
         await SettleAsync(ui);
         Save(window, Path.Combine(directory, "Light-drives-scanned.png"));
 
-        var session = (await services.GetRequiredService<IScanIndex>().GetLatestSessionsAsync(CancellationToken.None)).First(s => s.Volume == volumeId);
+        var index = services.GetRequiredService<IScanIndex>();
+        var session = (await index.GetLatestSessionsAsync(CancellationToken.None)).First(s => s.Volume == volumeId);
         var database = new FileInfo(services.GetRequiredService<IAppPaths>().DatabasePath);
         var wal = new FileInfo(database.FullName + "-wal");
         var culture = CultureInfo.InvariantCulture;
+
+        // An incremental update straight after the full scan, kept alongside it so the comparison can be shown.
+        await services.GetRequiredService<IRetentionSettings>().SetAsync(new RetentionPolicy(2, null), CancellationToken.None);
+        var updateTimer = Stopwatch.StartNew();
+        await activity.StartAsync([new ScanTarget(volume, relative, ScanKind.Incremental)]);
+        var updateElapsed = updateTimer.Elapsed;
+        var update = (await index.GetLatestSessionsAsync(CancellationToken.None)).First(s => s.Volume == volumeId);
+
+        var searchTimer = Stopwatch.StartNew();
+        var found = await index.SearchAsync(new SearchQuery([update.Id], "setup", SearchScope.FilesAndFolders, null, 0, 500), CancellationToken.None);
+        var searchElapsed = searchTimer.Elapsed;
+        database.Refresh();
         return
         [
+            string.Format(culture, "update: {0} {1} in {2:F1} s, {3:N0} folders listed again; note: {4}", ScanText.Kind(update.Kind), update.State, updateElapsed.TotalSeconds, update.ChangedDirectoryCount ?? 0, update.Note),
+            string.Format(culture, "scan: hard links {0:N0} extra names, {1:N0} bytes on disk not double counted; cloud files {2:N0}", session.LinkedFileCount, session.LinkedAllocatedBytes, session.CloudFileCount),
+            string.Format(culture, "search: \"setup\" {0:N0} matches in {1:F0} ms (unindexed sessions: {2})", found.MatchCount, searchElapsed.TotalMilliseconds, found.UnindexedSessionIds.Count),
             string.Format(culture, "scan: {0} ({1})", path, session.State),
             string.Format(culture, "scan: {0:N0} files, {1:N0} folders, {2:N0} bytes logical, {3:N0} errors, {4:N0} reparse points skipped", session.FileCount, session.DirectoryCount, session.LogicalBytes, session.IssueCount, session.ReparsePointsSkipped),
             string.Format(culture, "scan: {0:F1} s total ({1:N0} files/s including database writes and aggregation)", elapsed.TotalSeconds, session.FileCount / Math.Max(0.001, elapsed.TotalSeconds)),

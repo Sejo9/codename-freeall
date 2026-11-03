@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
              xmlns:views="clr-namespace:FreeAll.Desktop.Views"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=index:ExplorerViewModel}"
              x:ClassModifier="internal">
@@ -30,8 +31,20 @@
           </Style>
         </Button.Style>
       </Button>
+      <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" ToolTip="Save everything in this folder as CSV, JSON, HTML or PDF" />
+      <Button Margin="8,0,0,0" Command="{Binding AddToReviewCommand}" Content="Add to review queue" DockPanel.Dock="Right" ToolTip="Set the selected items aside to decide about later. Nothing is changed or removed." />
       <Button Margin="8,0,0,0" Command="{Binding CopyPathCommand}" Content="Copy path" DockPanel.Dock="Right" />
       <Button Margin="8,0,0,0" Command="{Binding RevealCommand}" Content="Open in File Explorer" DockPanel.Dock="Right" />
+      <ToggleButton Margin="8,0,0,0"
+                    AutomationProperties.Name="Show as treemap"
+                    DockPanel.Dock="Right"
+                    IsChecked="{Binding IsTreemap}"
+                    ToolTip="Show the folder as a treemap: each tile's area is its size on disk">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE80A;" />
+          <TextBlock Text="Treemap" />
+        </StackPanel>
+      </ToggleButton>
       <ComboBox MinWidth="300"
                 HorizontalAlignment="Left"
                 AutomationProperties.Name="Drive scan to browse"
@@ -67,8 +80,10 @@
       <TextBlock Margin="12,0,0,0"
                  VerticalAlignment="Center"
                  DockPanel.Dock="Right"
-                 Style="{StaticResource Typography.Caption}"
-                 Text="{Binding CountText}" />
+                 Style="{StaticResource Typography.Caption}">
+        <Run Text="{Binding StatusMessage, Mode=OneWay}" />
+        <Run Text="{Binding CountText, Mode=OneWay}" />
+      </TextBlock>
       <ItemsControl VerticalAlignment="Center" AutomationProperties.Name="Path" Focusable="False" ItemsSource="{Binding Breadcrumbs}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
@@ -125,6 +140,7 @@
           <TreeView.ItemContainerStyle>
             <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">
               <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+              <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
               <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
             </Style>
           </TreeView.ItemContainerStyle>
@@ -151,6 +167,26 @@
           </Grid.RowDefinitions>
           <ProgressBar Grid.Row="0" AutomationProperties.Name="Loading" IsIndeterminate="True" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
 
+          <!-- Treemap view: the list below stays the keyboard- and screen-reader-friendly table of the same items. -->
+          <DockPanel Grid.Row="1" Visibility="{Binding IsTreemap, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Margin="12,8,12,6"
+                       DockPanel.Dock="Top"
+                       Style="{StaticResource Typography.Caption}"
+                       Text="{Binding TreemapText}"
+                       TextWrapping="Wrap" />
+            <controls:TreemapControl x:Name="Treemap"
+                                     Margin="8,0,8,8"
+                                     AutomationProperties.HelpText="Arrow keys move between tiles, Enter opens a folder, Backspace goes up. Switch the treemap off for the list of the same items."
+                                     AutomationProperties.Name="Treemap of the folder's contents"
+                                     Foreground="{DynamicResource Color.TextPrimary}"
+                                     ItemActivated="OnTileActivated"
+                                     ItemsSource="{Binding TreemapItems}"
+                                     PreviewKeyDown="OnTreemapKeyDown"
+                                     SelectedItem="{Binding SelectedTile}"
+                                     SelectionBrush="{DynamicResource Color.Accent}"
+                                     Surface="{DynamicResource Color.Surface}" />
+          </DockPanel>
+
           <DataGrid x:Name="FileGrid"
                     Grid.Row="1"
                     AutomationProperties.Name="Folder contents"
@@ -158,7 +194,9 @@
                     MouseDoubleClick="OnRowDoubleClick"
                     PreviewKeyDown="OnGridKeyDown"
                     SelectedItem="{Binding SelectedRow}"
+                    SelectionChanged="OnSelectionChanged"
                     Sorting="OnSorting"
+                    Visibility="{Binding IsTreemap, Converter={StaticResource InverseBoolToVisibility}}"
                     AutoGenerateColumns="False"
                     BorderThickness="0"
                     CanUserReorderColumns="True"
@@ -168,10 +206,18 @@
                     GridLinesVisibility="None"
                     HeadersVisibility="Column"
                     IsReadOnly="True"
-                    SelectionMode="Single"
+                    SelectionMode="Extended"
                     VirtualizingPanel.IsVirtualizing="True"
                     VirtualizingPanel.ScrollUnit="Item"
                     VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Command="{Binding RevealCommand}" Header="Open in File Explorer" />
+                <MenuItem Command="{Binding CopyPathCommand}" Header="Copy path" />
+                <Separator />
+                <MenuItem Command="{Binding AddToReviewCommand}" Header="Add to review queue" />
+              </ContextMenu>
+            </DataGrid.ContextMenu>
             <!-- Only Name is star-sized; fixed columns set MinWidth equal to Width (TD-017). -->
             <DataGrid.Columns>
               <DataGridTemplateColumn Width="*" MinWidth="220" Header="Name" SortMemberPath="Name">
@@ -194,7 +240,21 @@
             </DataGrid.Columns>
           </DataGrid>
 
-          <DockPanel Grid.Row="2" Margin="12,8" Visibility="{Binding HasMore, Converter={StaticResource BoolToVisibility}}">
+          <DockPanel Grid.Row="2" Margin="12,8">
+            <DockPanel.Style>
+              <Style TargetType="DockPanel">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                      <Condition Binding="{Binding HasMore}" Value="True" />
+                      <Condition Binding="{Binding IsTreemap}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible" />
+                  </MultiDataTrigger>
+                </Style.Triggers>
+              </Style>
+            </DockPanel.Style>
             <Button Command="{Binding LoadMoreCommand}" Content="Show more" DockPanel.Dock="Left" />
             <TextBlock Margin="12,0,0,0" VerticalAlignment="Center" Style="{StaticResource Typography.Caption}" Text="Items are loaded 500 at a time, in the current sort order." />
           </DockPanel>

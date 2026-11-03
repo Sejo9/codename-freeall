@@ -130,6 +130,24 @@ validations.
                           point (EFI, recovery)   BLK-016)
                           are left out of default
                           scans (TD-012)
+
+  DEC-029                 Cloud placeholder       APPROVED
+                          folders (OneDrive Files (2026-11-03,
+                          On-Demand) are listed;  BLK-017)
+                          links are never
+                          followed; cloud-only
+                          files are labelled with
+                          their real space on
+                          disk
+
+  DEC-030                 The review queue,       APPROVED
+                          multi-select, a         (2026-11-03,
+                          scan-history retention  product owner)
+                          setting and hard-link
+                          -aware totals are
+                          delivered with Phase 3
+                          (moved forward from
+                          Phase 5/6)
   -----------------------------------------------------------------------
 
 ### Notes on DEC-022 to DEC-028
@@ -168,6 +186,24 @@ validations.
     copyright holder before the first public release. Open-source status
     also makes free code-signing programmes possible later (DEC-025).
 -   **DEC-028:** Confirms TD-012 and refines DEC-015.
+-   **DEC-029:** Option (b) of BLK-017. Only reparse tags in the cloud
+    family (`IO_REPARSE_TAG_CLOUD` to `CLOUD_F`) that are not name
+    surrogates are listed; junctions, symbolic links, mount points and
+    every other tag stay recorded and not followed (PR-003). Files are
+    never opened, so nothing is downloaded; listing a folder whose
+    listing is only in the cloud can make the sync app fetch that listing.
+    Cloud-only files (recall-on-open or recall-on-data-access attribute)
+    are labelled "Cloud file, not on this PC" with their logical size and
+    their real allocation (often zero). A sync app that isn't running
+    gives a "Cloud folder unavailable" error and a partial scan. Sessions
+    record the policy as `LinksNotFollowedCloudFoldersListed`; the
+    scanner version is 2. On the development PC the cloud filter shows
+    folders inside the OneDrive root as ordinary folders, so only the
+    OneDrive root itself carries the tag.
+-   **DEC-030:** The product owner asked for these items in this phase.
+    The review queue is a list only: nothing on disk changes, and
+    Recycle Bin, quarantine and revalidation stay in Phase 6. Changing
+    retention to keep less history is confirmed before data is removed.
 
 ## Superseded decisions
 
@@ -416,15 +452,15 @@ grid is needed. Rules from the prototype:
     folder's own row is written after its listing ends (it carries the
     folder's totals). Consistency is guaranteed by the scanner and
     covered by tests.
--   Recursive totals are computed once, when the session completes,
-    bottom-up one depth level per SQL statement. Category totals are
-    stored per session.
--   **Retention (provisional, F-018):** for each volume, FreeAll keeps
-    the detailed index of the newest finished scan and, if that one is
-    not complete, of the newest complete scan as well. Older indexes are
+-   Recursive totals are computed once, when the session completes
+    (in memory from Phase 3, TD-026). Category totals are stored per
+    session.
+-   **Retention (F-018; now configurable, TD-030):** by default, for
+    each volume, FreeAll keeps the detailed index of the newest finished
+    scan and, if that one is not complete, of the newest complete scan as
+    well. Older indexes are
     deleted in bounded transactions. Session summaries and their error
-    details are kept. A user-configurable retention setting is still to
-    be designed (`11-data-model.md` §7).
+    details are kept unless the user chooses otherwise (TD-030).
 -   Error details are capped at 10,000 per session; the counters include
     every error.
 -   Sessions left running by a crash are marked `Interrupted` at the next
@@ -468,9 +504,10 @@ decide whether anything can be removed.
 
 ### TD-022 --- Size accounting caveats (2026-11-03)
 
--   Folder and session totals sum every directory entry, so a file with
-    several hard links counts once per link (WinSxS is the common case).
-    File IDs are stored, and hard-link-aware totals arrive with F-028.
+-   Sessions recorded before schema version 3 sum every directory entry,
+    so a file with several hard links counts once per link (WinSxS is
+    the common case). From Phase 3, totals count each hard-linked file
+    once (TD-026).
 -   Allocated size is the value the file system reports in the directory
     listing. It is smaller than the logical size for sparse, compressed
     and cloud placeholder files, and it may be zero for very small files
@@ -501,6 +538,165 @@ Debug builds also accept `--capture-scan <path>` (scan that path before
 capturing, and write metrics to `metrics.txt`) and `--data-dir <folder>`
 (use another data folder, so review runs don't touch the real database).
 Neither exists in Release builds.
+
+### TD-025 --- Change journal and incremental updates (2026-11-03)
+
+-   **Access:** the NTFS change journal is read as a standard user. The
+    volume's root folder is opened with read-attributes access, the
+    journal is queried with `FSCTL_QUERY_USN_JOURNAL` and read with
+    `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` (Windows 10 1709 and later).
+    Unprivileged reads leave out file names; FreeAll only needs the file
+    and parent identities. Verified on the development PC as a standard
+    user. No privilege is used, so DEC-023's elevated opt-in is not needed
+    for incremental scans (it remains planned for protected folders).
+-   **Checkpoint:** every full scan records the journal ID and next USN
+    taken before anything is listed, so changes made during the scan are
+    replayed by the next update. An update records the USN it read up to.
+-   **When an update is allowed:** the newest session with detailed
+    results, of the same scope, scanner version and classifier version,
+    with a checkpoint and the same exclusions. Otherwise, and whenever the
+    journal is missing, inactive, recreated (new journal ID), truncated
+    (checkpoint older than the first kept USN), inconsistent (checkpoint
+    beyond the journal), unreadable, or reports changes in more than a
+    quarter of the baseline's folders (at least 20,000), a full scan runs
+    and the session note says why (docs/09-scanning-indexing.md §7).
+-   **Building the update:** the baseline's rows are copied into the new
+    session in bounded transactions; the baseline itself is never
+    changed. Targets are the folders whose identities appear in the
+    journal (parents of changed entries, and changed folders themselves),
+    plus every folder the baseline couldn't read completely (retried).
+    Junctions and excluded folders are never targets. Targets are listed
+    again shallowest first, one depth level at a time: a listing replaces
+    the folder's files, removes subfolders that are gone (with everything
+    below them), keeps subfolders with the same name and identity, and
+    scans new, renamed or moved-in subfolders in full. A target below a
+    removed folder is skipped. Metadata comes from the folder's own
+    handle. If the update stops early, targets not yet listed are marked
+    incomplete, so totals above them are lower bounds.
+-   **Correctness evidence:** on a real NTFS folder, after deleting,
+    renaming and moving folders, appending to and deleting files, and
+    creating a new subtree, the update's inventory equals a fresh full
+    scan's exactly (`IncrementalScanTests`), without listing the
+    unchanged folders.
+-   **Other file systems:** FAT, exFAT and others have no journal, so
+    Update always runs a full scan there and says so.
+
+### TD-026 --- Hard-link-aware totals and in-memory roll-up (2026-11-03)
+
+-   Names sharing a file ID within a session are names of one file (NTFS
+    and ReFS only; other file systems' IDs are not trusted for this).
+    Folder totals count each such file once: its names are put in tree
+    preorder and one copy is subtracted at the lowest common ancestor of
+    each consecutive pair, which is exact for every folder
+    (`HardLinkTotals`). When names report different sizes (NTFS updates
+    each name's copy lazily), the smallest is subtracted. File counts
+    still count names. Category totals give up one copy per extra name.
+    Each file records its `LinkCount`; sessions record the extra names
+    and bytes not double counted (`TotalsVersion` 2). Links outside the
+    scan scope are not seen.
+-   Recursive totals are computed in memory, deepest folders first
+    (`FolderRollup`), and written back by primary key. Memory is about
+    40 bytes per folder and never depends on the number of files.
+-   Every pass over a session's files is a sequential row-ID range scan
+    (`NOT INDEXED` between the session's first and last file ID). Measured
+    on a 1M-file C: index: the old finishing step took about 100 s (five
+    passes through an index, about 11 s each, and 33 s of per-level SQL
+    roll-up); the range pass takes 0.8 s, the hard-link groups 2.9 s and
+    the in-memory roll-up 2.8 s.
+
+### TD-027 --- Name search (2026-11-03)
+
+-   One contentless SQLite FTS5 table per session (`SearchIndex_<id>`,
+    `detail=none`, tokenizer `unicode61 remove_diacritics 2`), registered
+    in `SearchIndexes` once complete. A file's row ID is its file ID; a
+    folder's is the negated folder key. Only the newest browsable session
+    of each drive keeps its index; others are dropped. The table name is
+    the only generated SQL identifier and is built from an integer.
+-   What the user types is split into runs of letters and digits, each a
+    quoted prefix term; all must match. So punctuation can never form
+    query syntax, case and accents are ignored, and "annual rep" finds
+    "Annual report 2024.pdf". A single one-character word is not searched.
+    Substring search inside words is not offered; a trigram index would
+    roughly triple the index size.
+-   Measured: building the index for 1M names takes about 6 s; a search of
+    the C: index ("setup", 1,554 matches) took 55 ms.
+
+### TD-028 --- Export (2026-11-03)
+
+-   CSV, JSON, HTML and PDF (F-035) through `IReportExporter`. Every
+    export carries the scan ID, times, volume ID, scope, exclusions,
+    reparse policy, state, note and error counts, and says what it
+    contains: the list a page shows, every folder and file of one scan
+    (CSV and JSON), or a scan report (HTML and PDF: summary, categories,
+    largest 100 folders and files, errors).
+-   CSV: UTF-8 with BOM; fields that start with `=`, `+`, `-`, `@`, tab
+    or CR are prefixed with an apostrophe so spreadsheets show them
+    instead of evaluating them; standard quoting. JSON: schema
+    `freeall.export`, version 1, typed values, ISO 8601 UTC times. HTML:
+    every value encoded, a content security policy that forbids scripts,
+    light and dark styles. PDF: PdfPig, A4 landscape, embedded Segoe UI
+    subset; characters the font lacks print as "?" with a note. HTML and
+    PDF tables stop at 5,000 rows and say so; CSV and JSON are streamed
+    without a limit.
+-   Files are written next to the chosen name and moved into place when
+    complete, so a failed export never leaves a half-written file under
+    that name.
+
+### TD-029 --- Review queue and multi-select (2026-11-03)
+
+-   `ReviewItems` (schema version 3), owned by the Cleanup project
+    (`ReviewQueueService`). Each item keeps the volume, path, sizes, file
+    ID, category, modified time, source scan and the page it came from,
+    so Phase 6 can check that the item is still the one reviewed before
+    acting. One entry per volume and path; the top of a drive is refused.
+    Totals count items inside a queued folder once.
+-   The queue is opened from the title region ("Review (n)"), next to the
+    search box (docs/07-ui-ux-design.md §2), not from the navigation
+    rail, whose twelve entries are fixed. Storage Explorer, Large Files,
+    Search and the treemap support extended selection, copy of several
+    paths, context menus and "Add to review queue". Removing an item or
+    clearing the list never touches files; clearing is confirmed.
+
+### TD-030 --- Scan history retention setting (2026-11-03)
+
+-   Settings offers detailed results for the latest 1 (default), 2, 3 or
+    5 scans per drive, and scan summaries kept forever (default), or for
+    a year, 6, 3 or 1 month(s). The newest complete scan keeps its detail
+    and the newest scan of each drive keeps its summary whatever the
+    choice. A stricter choice is confirmed, then applied at once; every
+    scan applies it afterwards. An unreadable setting falls back to the
+    default, which keeps more, never less. Supersedes the provisional
+    part of TD-019.
+
+### TD-031 --- Treemap and charts (2026-11-03)
+
+-   Custom WPF controls drawn in `OnRender`, no third-party library
+    (resolves BLK-005). The treemap is squarified, two levels: the
+    current folder's 150 largest items, then the 30 largest items inside
+    each of its 24 largest folders, loaded progressively from bounded
+    queries; the rest of the folder is one "smaller items" tile. Tile
+    area is size on disk. Keyboard: arrows, Home, Enter, Backspace.
+-   Colours follow the eight-slot reference palette of the data
+    visualization guidance, validated with its checker for light and dark
+    surfaces (adjacent-pair colour-blind separation at least 8.4, normal
+    vision at least 19.3). They are theme tokens (`Color.Chart.1` to `.8`,
+    `Neutral`, `Surface`; system colours in high contrast) and are
+    assigned by category, never by rank. Text uses text tokens; tiles are
+    tinted so labels stay readable. Every tile, bar and segment also
+    carries its name and size in text, a tooltip, or the list next to it,
+    which is the table view.
+-   File Categories shows a share-of-space bar with a colour key on each
+    row. Scan History shows size on disk per scan for the selected drive
+    (one axis) and compares two scans by category and by folder (up to
+    four levels deep, matched by path through `IX_Directories_Path`).
+
+### TD-032 --- Device change notifications (2026-11-03)
+
+The main window listens for `WM_DEVICECHANGE` volume arrival and removal
+broadcasts (also sent when a drive letter is added or removed). Bursts
+are coalesced over one second, then the Drives page refreshes if it has
+been opened. Scans are unaffected: they address volumes by GUID path, and
+a volume that disappears ends its session as partial (TD-018).
 
 ## Decision change procedure
 

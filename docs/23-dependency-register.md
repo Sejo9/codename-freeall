@@ -42,6 +42,9 @@ and locked by `packages.lock.json`.
 
   Serilog.Sinks.File                        7.0.0     Apache-2.0   Infrastructure     Rolling local
                                                                                       log files
+
+  PdfPig                                    0.1.16    Apache-2.0   Infrastructure     PDF export
+                                                                                      (F-035)
   ------------------------------------------------------------------------------------------------
 
 ### Review notes
@@ -61,6 +64,20 @@ and locked by `packages.lock.json`.
 -   **Replaceability:** all are behind project-owned abstractions
     (`IAppDatabase`, `IUserPreferences`, `ILogger`). Serilog is only
     referenced by `FileLogging`.
+-   **PdfPig (Phase 3):** UglyToad/PdfPig, an active open-source project
+    (Apache-2.0) used for reading and writing PDFs. It has no package
+    dependencies on .NET 8 and later, no native code, and adds about
+    5.5 MB (seven managed assemblies, including its document layout
+    analysis, which FreeAll doesn't use). FreeAll only uses its document
+    builder: reports embed a subset of a Windows font (Segoe UI, or
+    Arial), so the PDF stays small. NuGet audit reported no advisories on
+    2026-11-03. It is used only by `PdfReportWriter`, behind
+    `IReportExporter`, so it can be replaced.
+-   **Rejected for PDF export (Phase 3):** PDFsharp 6.5.0 is licensed
+    AGPL-3.0-only (copyleft, not allowed by DEC-024) and also pulls in
+    System.Security.Cryptography.Pkcs 8.0.1, which has known advisories.
+    QuestPDF (community licence, revenue-capped) and iText (AGPL) are also
+    not allowed.
 -   **Not used:** Microsoft.Extensions.Hosting (heavier than needed for
     a desktop composition root), Entity Framework Core (no measured need
     for an ORM, per `11-data-model.md` §2), System.Data.SQLite (rejected
@@ -90,6 +107,9 @@ and locked by `packages.lock.json`.
   Date         Package                                       Change     Reviewer
   ------------ --------------------------------------------- ---------- --------------------
   2026-11-02   xunit.v3                                      Added      AI agent (Phase 0)
+  2026-11-03   PdfPig 0.1.16                                 Added      AI agent (Phase 3)
+  2026-11-03   PDFsharp 6.5.0                                Rejected   AI agent (Phase 3):
+                                                                        AGPL-3.0-only
   2026-11-02   CommunityToolkit.Mvvm,                        Added      AI agent (Phase 1)
                Microsoft.Extensions.DependencyInjection,                
                Microsoft.Extensions.Logging.Abstractions,               

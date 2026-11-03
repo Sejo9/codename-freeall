@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=index:CategoriesViewModel}"
              x:ClassModifier="internal">
@@ -21,6 +22,14 @@
                 ItemsSource="{Binding Sessions}"
                 SelectedItem="{Binding SelectedSession}" />
       <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding TotalText}" />
+      <controls:ShareBar MaxWidth="980"
+                         Height="18"
+                         Margin="0,8,0,4"
+                         HorizontalAlignment="Left"
+                         AutomationProperties.HelpText="Each category's share of space on disk. The list below gives every value."
+                         AutomationProperties.Name="Space on disk by category"
+                         Surface="{DynamicResource Color.Background}"
+                         Values="{Binding Shares}" />
       <TextBlock MaxWidth="760"
                  Margin="0,2,0,0"
                  HorizontalAlignment="Left"
@@ -57,9 +66,12 @@
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Margin="0,0,16,0">
-                  <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding Name}" />
+                  <StackPanel Orientation="Horizontal">
+                    <controls:ShareBar Width="12" Height="12" Margin="0,0,8,0" VerticalAlignment="Center" Surface="{DynamicResource Color.Surface}" Values="{Binding Swatch}" />
+                    <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding Name}" />
+                  </StackPanel>
                   <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding DetailText}" Typography.NumeralAlignment="Tabular" />
-                  <ProgressBar Margin="0,8,0,6" AutomationProperties.Name="Share of scanned storage" Style="{StaticResource UsageMeter}" Value="{Binding Share, Mode=OneTime}" />
+                  <ProgressBar Margin="0,8,0,6" AutomationProperties.Name="Share of scanned storage" Style="{StaticResource UsageMeter}" Value="{Binding ShareFraction, Mode=OneTime}" />
                   <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding RuleText}" TextWrapping="Wrap" />
                 </StackPanel>
                 <TextBlock Grid.Column="1"

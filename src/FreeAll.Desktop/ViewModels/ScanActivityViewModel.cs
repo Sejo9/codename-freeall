@@ -104,11 +104,13 @@ internal sealed partial class ScanActivityViewModel : ObservableObject
 
         var culture = CultureInfo.CurrentCulture;
         var of = snapshot.VolumeCount > 1 ? string.Format(culture, " ({0} of {1})", snapshot.VolumeNumber, snapshot.VolumeCount) : string.Empty;
+        var verb = snapshot.Kind == ScanKind.Incremental ? "Updating" : "Scanning";
         Title = snapshot.Phase switch
         {
             ScanPhase.Cancelling => "Cancelling… the folder being read finishes first",
+            ScanPhase.Preparing => $"Reading changes on {snapshot.VolumeName}{of}",
             ScanPhase.Saving => $"Saving results for {snapshot.VolumeName}{of}",
-            _ => $"Scanning {snapshot.VolumeName}{of}",
+            _ => $"{verb} {snapshot.VolumeName}{of}",
         };
 
         var errors = snapshot.Issues == 0 ? string.Empty : string.Format(culture, " · {0:N0} {1}", snapshot.Issues, snapshot.Issues == 1 ? "error" : "errors");
@@ -125,7 +127,7 @@ internal sealed partial class ScanActivityViewModel : ObservableObject
             : snapshot.CurrentPath;
         StatusText = snapshot.Phase == ScanPhase.Cancelling
             ? "Cancelling scan…"
-            : string.Format(culture, "Scanning {0}{1} · {2:N0} files", snapshot.VolumeName, of, snapshot.Files);
+            : string.Format(culture, "{0} {1}{2} · {3:N0} files", verb, snapshot.VolumeName, of, snapshot.Files);
     }
 
     internal void Finish(ScanRunResult result)

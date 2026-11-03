@@ -11,4 +11,8 @@ public enum AppTheme
 public static class PreferenceKeys
 {
     public const string Theme = "ui.theme";
+
+    public const string RetentionDetailedScans = "history.detailedScansPerDrive";
+
+    public const string RetentionHistoryDays = "history.keepDays";
 }

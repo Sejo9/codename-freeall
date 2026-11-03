@@ -23,4 +23,16 @@
   <SolidColorBrush x:Key="Color.MeterTrack" Color="#FF454545" />
   <SolidColorBrush x:Key="Color.Folder" Color="#FFFFC83D" />
 
+  <!-- Chart and treemap series (dataviz reference palette, validated dark). -->
+  <SolidColorBrush x:Key="Color.Chart.1" Color="#FF3987E5" />
+  <SolidColorBrush x:Key="Color.Chart.2" Color="#FFD95926" />
+  <SolidColorBrush x:Key="Color.Chart.3" Color="#FF199E70" />
+  <SolidColorBrush x:Key="Color.Chart.4" Color="#FFC98500" />
+  <SolidColorBrush x:Key="Color.Chart.5" Color="#FFD55181" />
+  <SolidColorBrush x:Key="Color.Chart.6" Color="#FF008300" />
+  <SolidColorBrush x:Key="Color.Chart.7" Color="#FF9085E9" />
+  <SolidColorBrush x:Key="Color.Chart.8" Color="#FFE66767" />
+  <SolidColorBrush x:Key="Color.Chart.Neutral" Color="#FF6E6E6E" />
+  <SolidColorBrush x:Key="Color.Chart.Surface" Color="#FF1A1A19" />
+
 </ResourceDictionary>

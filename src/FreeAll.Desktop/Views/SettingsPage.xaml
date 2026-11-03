@@ -35,6 +35,44 @@
         </StackPanel>
       </Border>
 
+      <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Scan history" />
+      <Border Margin="{StaticResource Thickness.SectionGap}" Style="{StaticResource Card}">
+        <StackPanel>
+          <DockPanel>
+            <ComboBox Width="300"
+                      VerticalAlignment="Center"
+                      AutomationProperties.Name="Detailed results to keep"
+                      DisplayMemberPath="Label"
+                      DockPanel.Dock="Right"
+                      ItemsSource="{Binding DetailedOptions}"
+                      SelectedItem="{Binding SelectedDetailed}" />
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Detailed results" />
+              <TextBlock Style="{StaticResource Typography.Caption}" Text="Every folder and file of a scan, needed to browse it and to compare folders between scans. A drive with a million files needs about 200 MB per scan. The newest complete scan is also kept." TextWrapping="Wrap" />
+            </StackPanel>
+          </DockPanel>
+          <Separator Margin="0,12" />
+          <DockPanel>
+            <ComboBox Width="300"
+                      VerticalAlignment="Center"
+                      AutomationProperties.Name="Scan summaries to keep"
+                      DisplayMemberPath="Label"
+                      DockPanel.Dock="Right"
+                      ItemsSource="{Binding HistoryOptions}"
+                      SelectedItem="{Binding SelectedHistory}" />
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Scan summaries" />
+              <TextBlock Style="{StaticResource Typography.Caption}" Text="Each scan's totals, categories and errors, used by Scan History and its chart. The newest scan of each drive is always kept." TextWrapping="Wrap" />
+            </StackPanel>
+          </DockPanel>
+          <TextBlock Margin="0,8,0,0"
+                     Style="{StaticResource Typography.Caption}"
+                     Text="{Binding RetentionNote}"
+                     TextWrapping="Wrap"
+                     Visibility="{Binding RetentionNote, Converter={StaticResource NullToVisibility}}" />
+        </StackPanel>
+      </Border>
+
       <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Privacy" />
       <Border Margin="{StaticResource Thickness.SectionGap}" Style="{StaticResource Card}">
         <DockPanel>
