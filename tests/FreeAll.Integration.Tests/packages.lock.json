@@ -186,7 +186,8 @@
       "freeall.application": {
         "type": "Project",
         "dependencies": {
-          "FreeAll.Core": "[0.0.1, )"
+          "FreeAll.Core": "[0.0.1, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "freeall.core": {
@@ -202,6 +203,14 @@
           "Serilog": "[4.4.0, )",
           "Serilog.Extensions.Logging": "[10.0.0, )",
           "Serilog.Sinks.File": "[7.0.0, )"
+        }
+      },
+      "freeall.scanner": {
+        "type": "Project",
+        "dependencies": {
+          "FreeAll.Application": "[0.0.1, )",
+          "FreeAll.Core": "[0.0.1, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "Microsoft.Data.Sqlite": {

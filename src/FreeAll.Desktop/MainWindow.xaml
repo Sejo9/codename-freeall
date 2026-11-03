@@ -110,7 +110,7 @@
       <DockPanel>
         <TextBlock DockPanel.Dock="Right" Style="{StaticResource Typography.Caption}" Text="{Binding VersionText}" />
         <StackPanel Orientation="Horizontal">
-          <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding ScanStatusText}" />
+          <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding ScanActivity.StatusText}" />
           <TextBlock Margin="12,0" Style="{StaticResource Typography.Caption}" Text="·" />
           <StackPanel Orientation="Horizontal" ToolTip="{Binding DatabaseProblem}">
             <TextBlock Margin="0,0,6,0"

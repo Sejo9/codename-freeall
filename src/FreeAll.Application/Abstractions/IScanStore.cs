@@ -1,0 +1,87 @@
+using FreeAll.Application.Scanning;
+using FreeAll.Core.Scanning;
+using FreeAll.Core.Volumes;
+
+namespace FreeAll.Application.Abstractions;
+
+/// <summary>
+/// Persists drives, scan sessions and the file index (docs/11-data-model.md). All methods throw
+/// <see cref="PersistenceException"/> when the database is unavailable or a write fails.
+/// </summary>
+public interface IScanStore
+{
+    /// <summary>Records every discovered volume by GUID and marks previously known volumes that are missing as unavailable.</summary>
+    Task RecordDiscoveryAsync(VolumeInventory inventory, CancellationToken cancellationToken);
+
+    /// <summary>Records the volume and creates a session in the <see cref="ScanState.Running"/> state.</summary>
+    Task<long> StartSessionAsync(NewScanSession session, CancellationToken cancellationToken);
+
+    Task SetSessionStateAsync(long sessionId, ScanState state, CancellationToken cancellationToken);
+
+    /// <summary>Writes the batches in one transaction.</summary>
+    Task WriteBatchesAsync(long sessionId, IReadOnlyList<ScanBatch> batches, CancellationToken cancellationToken);
+
+    /// <summary>Computes recursive folder totals and category totals, then records the final state.</summary>
+    Task<ScanSessionSummary> CompleteSessionAsync(long sessionId, SessionCompletion completion, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Marks sessions left unfinished by an earlier run as <see cref="ScanState.Interrupted"/> and removes
+    /// their detailed rows, which may be inconsistent. Call once at startup, before any scan.
+    /// </summary>
+    /// <returns>The number of sessions marked.</returns>
+    Task<int> RecoverInterruptedSessionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes detailed rows of older sessions for the volume. Keeps the newest session with an index and,
+    /// when that one is not complete, the newest complete one as well. Session summaries and errors are kept.
+    /// </summary>
+    /// <returns>The number of sessions whose detail was removed.</returns>
+    Task<int> PruneInventoriesAsync(VolumeId volume, CancellationToken cancellationToken);
+}
+
+/// <summary>Read-only queries over stored sessions and the index. Results are bounded by explicit limits.</summary>
+public interface IScanIndex
+{
+    /// <summary>Most recent sessions first.</summary>
+    Task<IReadOnlyList<ScanSessionSummary>> GetSessionsAsync(int limit, CancellationToken cancellationToken);
+
+    Task<ScanSessionSummary?> GetSessionAsync(long sessionId, CancellationToken cancellationToken);
+
+    /// <summary>The most recent finished session for each volume.</summary>
+    Task<IReadOnlyList<ScanSessionSummary>> GetLatestSessionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>For each volume, the most recent finished session whose index is still stored.</summary>
+    Task<IReadOnlyList<ScanSessionSummary>> GetBrowsableSessionsAsync(CancellationToken cancellationToken);
+
+    Task<IndexEntry?> GetFolderAsync(long sessionId, int directoryKey, CancellationToken cancellationToken);
+
+    /// <summary>The folder and its ancestors, scan root first.</summary>
+    Task<IReadOnlyList<IndexEntry>> GetFolderChainAsync(long sessionId, int directoryKey, CancellationToken cancellationToken);
+
+    /// <summary>Subfolders ordered by name.</summary>
+    Task<IReadOnlyList<IndexEntry>> GetSubfoldersAsync(long sessionId, int parentKey, CancellationToken cancellationToken);
+
+    /// <summary>One page of a folder's subfolders and files, sorted in the database.</summary>
+    Task<IndexPage> GetChildrenAsync(long sessionId, int parentKey, EntryOrder order, int offset, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<IndexEntry>> GetLargestFilesAsync(LargeFileQuery query, CancellationToken cancellationToken);
+
+    /// <summary>Largest folders by recursive allocated size, excluding scan roots.</summary>
+    Task<IReadOnlyList<IndexEntry>> GetLargestFoldersAsync(IReadOnlyList<long> sessionIds, int limit, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CategoryTotal>> GetCategoryTotalsAsync(long sessionId, CancellationToken cancellationToken);
+
+    /// <summary>Stored errors in the order they occurred.</summary>
+    Task<IReadOnlyList<ScanIssueRecord>> GetIssuesAsync(long sessionId, int limit, CancellationToken cancellationToken);
+}
+
+/// <summary>User-chosen scan exclusions (DEC-017).</summary>
+public interface IScanExclusionStore
+{
+    Task<IReadOnlyList<ScanExclusion>> GetAllAsync(CancellationToken cancellationToken);
+
+    /// <summary>Adds an exclusion, or returns the existing one for the same folder.</summary>
+    Task<ScanExclusion> AddAsync(VolumeId volume, string relativePath, string displayPath, CancellationToken cancellationToken);
+
+    Task RemoveAsync(long exclusionId, CancellationToken cancellationToken);
+}

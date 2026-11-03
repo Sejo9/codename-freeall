@@ -1,7 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
-                    xmlns:explorer="clr-namespace:FreeAll.Desktop.ViewModels.Explorer"
+                    xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
                     xmlns:views="clr-namespace:FreeAll.Desktop.Views">
 
   <!-- Maps each page view model to its view. The shell's ContentControl picks the template by type. -->
@@ -18,8 +18,20 @@
     <views:SettingsPage />
   </DataTemplate>
 
-  <DataTemplate DataType="{x:Type explorer:ExplorerPrototypeViewModel}">
-    <views:ExplorerPrototypePage />
+  <DataTemplate DataType="{x:Type index:ExplorerViewModel}">
+    <views:ExplorerPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type index:LargeFilesViewModel}">
+    <views:LargeFilesPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type index:CategoriesViewModel}">
+    <views:CategoriesPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type index:ScanHistoryViewModel}">
+    <views:ScanHistoryPage />
   </DataTemplate>
 
 </ResourceDictionary>

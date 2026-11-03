@@ -56,6 +56,8 @@ internal sealed class FakeThemeService : IThemeService
 internal sealed class ImmediateUiDispatcher : IUiDispatcher
 {
     public Task WaitForIdleAsync() => Task.CompletedTask;
+
+    public void Post(Action action) => action();
 }
 
 internal sealed class FakeShellLauncher : IShellLauncher
@@ -72,6 +74,18 @@ internal sealed class FakeShellLauncher : IShellLauncher
         }
 
         Opened.Add(path);
+    }
+
+    public List<string> Revealed { get; } = [];
+
+    public void Reveal(string path)
+    {
+        if (Failure is not null)
+        {
+            throw Failure;
+        }
+
+        Revealed.Add(path);
     }
 }
 

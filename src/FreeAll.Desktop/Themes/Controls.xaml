@@ -162,4 +162,78 @@
     <Setter Property="Margin" Value="0,8,0,2" />
   </Style>
 
+  <!--
+    Primary action (one per view). Project-owned rather than the Fluent accent style so it also exists in
+    high contrast, where the Fluent resources are not loaded.
+  -->
+  <Style x:Key="Button.Accent" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource Color.OnAccent}" />
+    <Setter Property="Background" Value="{DynamicResource Color.Accent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Color.Accent}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="12,5" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="FontFamily" Value="{StaticResource Font.Text}" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bd"
+                  Padding="{TemplateBinding Padding}"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{StaticResource Radius.Small}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Opacity" Value="0.9" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bd" Property="Opacity" Value="0.8" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Color.TextPrimary}" />
+              <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Data grid cells: sizes, counts and dates use right-aligned tabular numerals. -->
+  <Style x:Key="Cell.Numeric" TargetType="TextBlock">
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,0,12,0" />
+    <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+  </Style>
+
+  <!-- Folder or file icon in index rows; DataContext is an IndexRowViewModel. -->
+  <Style x:Key="Icon.Entry" TargetType="TextBlock" BasedOn="{StaticResource Typography.Icon}">
+    <Setter Property="Foreground" Value="{DynamicResource Color.TextSecondary}" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding IsFolder}" Value="True">
+        <Setter Property="Foreground" Value="{DynamicResource Color.Folder}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Text cells that may be long. No secondary colour: it loses contrast on the selected-row accent. -->
+  <Style x:Key="Cell.Secondary" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
+  <!--
+    No shared DataGrid style: a style BasedOn the Fluent DataGrid style through StaticResource keeps the theme
+    that was active when it was created, so dark mode showed a light grid. Index grids set their properties
+    directly (read-only, virtualized, recycling, sorting done by the view model; TD-017).
+  -->
+
 </ResourceDictionary>

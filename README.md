@@ -2,9 +2,12 @@
 
 Windows 11 storage intelligence and safe-cleanup desktop application (WPF, .NET 10, x64).
 
-**Status:** Phase 1 (UI and data foundation). The app shell, theming, drive discovery, local
-database and logging work. Scanning and cleanup are not implemented yet; see
+**Status:** Phase 2 (scanner and storage explorer). FreeAll scans local drives (read-only, without
+following links), stores the results locally, and shows them in Storage Explorer, Large Files, File
+Categories and Scan History. Cleanup is not implemented yet; see
 [docs/17-feature-checklist.md](docs/17-feature-checklist.md).
+
+FreeAll is free and open source under the [MIT licence](LICENSE).
 
 ## Documentation
 
@@ -32,8 +35,8 @@ tests/
   FreeAll.Architecture.Tests Dependency and privilege rules
   FreeAll.Core.Tests         Domain rules
   FreeAll.Application.Tests  Application services and formatting
-  FreeAll.Scanner.Tests      Volume discovery against this machine (read-only)
-  FreeAll.Integration.Tests  SQLite, access lists and logging in temp folders
+  FreeAll.Scanner.Tests      Volume discovery and scanning of temp folder trees
+  FreeAll.Integration.Tests  SQLite, access lists, logging and the scan pipeline in temp folders
   FreeAll.Desktop.Tests      View models and theme logic
 docs/                        Product and engineering baseline
 ```
@@ -57,5 +60,6 @@ FreeAll stores its database and logs in `%LocalAppData%\FreeAll`.
 src/FreeAll.Desktop/bin/Debug/net10.0-windows/FreeAll.exe --capture-screens <folder>
 ```
 
-Renders every page in light and dark themes to PNG files, runs the explorer stress test (metrics in
-`explorer-metrics.txt`) and exits.
+Renders every page in light and dark themes to PNG files and exits. Add `--capture-scan <path>` to
+scan a folder or drive first (metrics go to `metrics.txt`), and `--data-dir <folder>` to use a separate
+data folder instead of `%LocalAppData%\FreeAll`.

@@ -120,9 +120,19 @@ validations.
   DEC-026                 Scans support cancel    APPROVED
                           only in v1; no pause    (2026-11-02,
                                                   BLK-014)
+
+  DEC-027                 Source code is public   APPROVED
+                          so others can benefit   (2026-11-03,
+                          from it; licensed MIT   BLK-015)
+
+  DEC-028                 Fixed volumes without   APPROVED
+                          a drive letter or mount (2026-11-03,
+                          point (EFI, recovery)   BLK-016)
+                          are left out of default
+                          scans (TD-012)
   -----------------------------------------------------------------------
 
-### Notes on DEC-022 to DEC-026
+### Notes on DEC-022 to DEC-028
 
 -   **DEC-022:** The cleanup review shows the destination as
     unavailable for that volume with a plain-language reason. Neither
@@ -138,8 +148,8 @@ validations.
     licences that would constrain redistribution, and
     revenue-capped, "community", commercial or non-commercial-only
     licences. Each dependency is checked against this in
-    `23-dependency-register.md`. Whether the *source code* is published
-    and under which licence is still open (BLK-015).
+    `23-dependency-register.md`. The source code is published under the
+    MIT licence (DEC-027).
 -   **DEC-025:** Known consequences: Windows SmartScreen warns on first
     run, and the UAC prompt for the helper shows "Unknown publisher". The
     helper publisher-signature check (`08-security-privacy.md` §4) is
@@ -151,6 +161,13 @@ validations.
     needs no certificate. The signing step in `build.ps1` stays in place
     so it can be enabled later.
 -   **DEC-026:** Supersedes proposal TD-009.
+-   **DEC-027:** The product owner chose public source "so others can
+    benefit"; no licence was named. MIT was applied as the most permissive
+    licence family already allowed by DEC-024 (`LICENSE`, copyright
+    "FreeAll contributors"). The owner can change the licence or the
+    copyright holder before the first public release. Open-source status
+    also makes free code-signing programmes possible later (DEC-025).
+-   **DEC-028:** Confirms TD-012 and refines DEC-015.
 
 ## Superseded decisions
 
@@ -275,7 +292,7 @@ experimental (`WPF0001`, suppressed in the Desktop project); if the API
 changes, the fallback is the project-owned styles in `Themes/`. Audit
 findings are recorded under BLK-006.
 
-### TD-012 --- Unmounted fixed volumes are on demand (2026-11-02) --- FOR PRODUCT-OWNER REVIEW
+### TD-012 --- Unmounted fixed volumes are on demand (2026-11-02) --- APPROVED as DEC-028
 
 Fixed volumes with no drive letter or folder mount point (typically EFI
 system and recovery partitions) are listed on the Drives page but are
@@ -283,8 +300,8 @@ not selected for the default scan. The user can still choose them, as
 with removable volumes. Reason: they are not reachable through ordinary
 paths, normally need elevation, and contain only OS-managed data, so
 including them would make every default scan partial. This refines
-DEC-015 ("default scan all local fixed drives") and is reported to the
-product owner for confirmation.
+DEC-015 ("default scan all local fixed drives"). Confirmed by the
+product owner on 2026-11-03.
 
 ### TD-013 --- SQLite provider and operation (2026-11-02)
 
@@ -345,7 +362,145 @@ grid is needed. Rules from the prototype:
 -   Fixed-width columns must set `MinWidth` equal to `Width`.
 -   Tree children load lazily on expansion.
 -   The production explorer will page from the index (`11-data-model.md`)
-    instead of holding all rows in memory.
+    instead of holding all rows in memory (done in Phase 2, TD-023).
+
+### TD-018 --- Scanner traversal and enumeration (2026-11-03)
+
+-   **API:** each directory is opened with `CreateFileW` using
+    `FILE_FLAG_BACKUP_SEMANTICS` (required for directory handles; no
+    privilege is enabled, so access checks apply) and
+    `FILE_FLAG_OPEN_REPARSE_POINT`, then listed in 64 KB chunks with
+    `GetFileInformationByHandleEx(FileIdExtdDirectoryInfo)`. This returns
+    logical size, allocation, four timestamps, attributes, the reparse tag
+    and the 128-bit file ID for every entry without opening any file.
+    File systems that reject that class (FAT, exFAT) fall back to
+    `FileIdBothDirectoryInfo` (64-bit IDs; the reparse tag is in
+    `EaSize`). The probe runs once per scan, on the root.
+-   **Paths:** directories are opened through the volume GUID path
+    (`\\?\Volume{…}\…`), so a drive-letter change during a scan has no
+    effect and long paths need no special handling. The index stores
+    volume-relative paths (`\` is the root).
+-   **Reparse points:** never followed (PR-003). A directory that is a
+    reparse point in its parent's listing is recorded as such and not
+    opened. A directory that has become one since then is opened as the
+    link itself (because of `FILE_FLAG_OPEN_REPARSE_POINT`), detected
+    from its handle, and skipped. A handle whose volume serial number
+    differs from the root's is refused. Because no link is ever
+    followed, and NTFS has no directory hard links, traversal cannot
+    loop, so no visited-identity set is kept
+    (`09-scanning-indexing.md` §3 "where needed"). A depth limit (1024)
+    is kept as a safety net.
+-   **Concurrency and memory:** workers (default 4, BLK-009) share a
+    last-in-first-out frontier, so traversal is depth-first and the
+    frontier holds roughly the siblings along the current path. Each
+    worker owns a 64 KB buffer and a batch (default 2,000 records),
+    flushed while a large folder is still being listed. Batches go
+    through a bounded channel (2 × workers) to a single persistence
+    consumer that writes up to 20,000 rows per transaction. Memory is
+    bounded by these sizes plus the frontier; it does not grow with
+    the number of files.
+-   **Cancellation:** stops at the next listing chunk. The folder being
+    listed is recorded as `Incomplete`, folders still in the frontier as
+    `NotScanned`, and everything already produced is written, so the
+    partial session is consistent.
+
+### TD-019 --- Index storage and retention (2026-11-03)
+
+-   Schema version 2 (`0002_scan_index.sql`): `Drives`, `ScanSessions`,
+    `Directories`, `Files`, `ScanErrors`, `SessionCategoryTotals`,
+    `Exclusions`. `FileIdentities`, hashes and the other tables in
+    `11-data-model.md` §3 arrive with the features that need them.
+-   Folder and file rows are session-scoped (scan provenance). Folders are
+    keyed by `(SessionId, DirKey)`, where the scanner assigns `DirKey`.
+    Files reference their folder by key without a foreign key, because a
+    folder's own row is written after its listing ends (it carries the
+    folder's totals). Consistency is guaranteed by the scanner and
+    covered by tests.
+-   Recursive totals are computed once, when the session completes,
+    bottom-up one depth level per SQL statement. Category totals are
+    stored per session.
+-   **Retention (provisional, F-018):** for each volume, FreeAll keeps
+    the detailed index of the newest finished scan and, if that one is
+    not complete, of the newest complete scan as well. Older indexes are
+    deleted in bounded transactions. Session summaries and their error
+    details are kept. A user-configurable retention setting is still to
+    be designed (`11-data-model.md` §7).
+-   Error details are capped at 10,000 per session; the counters include
+    every error.
+-   Sessions left running by a crash are marked `Interrupted` at the next
+    start, before any scan can begin, and their detailed rows are
+    deleted because they may be inconsistent.
+
+### TD-020 --- Scan completeness rules (2026-11-03)
+
+-   `Completed`: the whole scope was traversed and saved, and no error
+    left part of it unread.
+-   Not followed reparse points and user exclusions are part of the
+    defined scope. They are counted and shown with the scope
+    (`04-functional-specification.md` §2 step 3), and they do not make a
+    scan partial.
+-   Items removed while the scan ran (not found) are recorded but do not
+    make a scan partial: nothing that exists was missed.
+-   `Partial`: any other error (access denied, sharing violation, depth
+    limit and so on), cancellation, or a volume that stopped responding.
+    Folder rows count incomplete descendants, so the UI can say which
+    totals are lower bounds.
+-   `Failed`: the root could not be opened, results could not be saved,
+    or the scanner failed unexpectedly.
+-   Consequence: a standard-user scan of the Windows drive is normally
+    `Partial`, because folders such as `System Volume Information` and
+    other users' profiles can't be read without elevation. That is
+    reported honestly. Elevated scanning (DEC-023) arrives with the
+    helper in Phase 6.
+
+### TD-021 --- File classification v1 (2026-11-03)
+
+Deterministic and versioned (`FileClassifier.Version` = 1). The
+lowercase extension decides first, from fixed lists per category.
+Otherwise the folder location decides: Windows → System and driver
+files; Windows\Temp and AppData\Local\Temp → Temporary files;
+ProgramData and AppData → Application data. Anything else is Other /
+unknown. The rule that matched is stored with each file, so the UI can
+explain it, and the version is stored with each session. `ts` is
+deliberately unclassified (video and TypeScript). Location labels
+(Windows, Program Files, AppData and so on) are context only and never
+decide whether anything can be removed.
+
+### TD-022 --- Size accounting caveats (2026-11-03)
+
+-   Folder and session totals sum every directory entry, so a file with
+    several hard links counts once per link (WinSxS is the common case).
+    File IDs are stored, and hard-link-aware totals arrive with F-028.
+-   Allocated size is the value the file system reports in the directory
+    listing. It is smaller than the logical size for sparse, compressed
+    and cloud placeholder files, and it may be zero for very small files
+    stored inside the MFT.
+-   NTFS refreshes the metadata copy in the parent's index lazily, so a
+    file that is open for writing can show a stale size or time (seen in
+    testing: a folder's last-write time changed in the listing after a
+    handle closed).
+-   Alternate data streams are not counted (BLK-008).
+-   Volume used space comes from Windows and is shown separately from the
+    sum of indexed files.
+
+### TD-023 --- Index-backed explorer and analysis pages (2026-11-03)
+
+Storage Explorer, Large Files, File Categories and Scan History read
+from the index through `IScanIndex`. Folder listings are sorted in SQL
+and loaded 500 rows at a time ("Show more"). Large Files runs one
+indexed top-N query per drive (500 results) and merges them. The tree
+loads subfolders when expanded; the list, breadcrumbs and tree are not
+kept in sync when navigating from the list. The Phase 1 synthetic
+prototype was removed. Opening an item in File Explorer passes the
+quoted path to `explorer.exe /select,`; Windows file names can't contain
+quotes, and a path containing one is refused.
+
+### TD-024 --- Debug capture options (2026-11-03)
+
+Debug builds also accept `--capture-scan <path>` (scan that path before
+capturing, and write metrics to `metrics.txt`) and `--data-dir <folder>`
+(use another data folder, so review runs don't touch the real database).
+Neither exists in Release builds.
 
 ## Decision change procedure
 

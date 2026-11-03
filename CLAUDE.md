@@ -7,6 +7,7 @@
 - New packages: add to `Directory.Packages.props` and record in `docs/23-dependency-register.md` first.
 - Build and test: `./build.ps1` (CI: `./build.ps1 -Configuration Release -Locked -Publish`). Warnings are errors.
 - After changing package references, run a normal `dotnet restore` so the `packages.lock.json` files update, then commit them.
-- UI changes: build Debug and run `FreeAll.exe --capture-screens <scratch folder>`, then review the PNGs in light and dark before reporting UI work as done. Colours only via `DynamicResource Color.*` tokens (TD-011).
+- UI changes: build Debug and run `FreeAll.exe --capture-screens <scratch folder> --data-dir <scratch data folder>` (add `--capture-scan <path>` for pages with data), then review the PNGs in light and dark before reporting UI work as done. Colours only via `DynamicResource Color.*` tokens (TD-011).
+- Scanner and index rules: TD-018 to TD-023. Persisted enum values in Core never change; schema changes are new migration scripts, never edits.
 - WPF projects do not get `System.IO` as an implicit using (it conflicts with `System.Windows.Shapes.Path`); add `using System.IO;` explicitly.
 - At session end, update `docs/17`, `docs/18` and `docs/19`, and report in the format in `docs/15` §8.

@@ -16,8 +16,8 @@ using Microsoft.Extensions.Logging;
 namespace FreeAll.Desktop;
 
 /// <summary>
-/// Startup: platform gate → protected data folder → logging → composition → database → theme → shell.
-/// No step blocks the UI thread on file-system or database work.
+/// Startup: platform gate → protected data folder → logging → composition → database → scan recovery →
+/// theme → shell. No step blocks the UI thread on file-system or database work.
 /// </summary>
 internal partial class App : System.Windows.Application
 {
@@ -66,6 +66,12 @@ internal partial class App : System.Windows.Application
         }
 
         var paths = AppPaths.ForCurrentUser();
+#if DEBUG
+        if (Diagnostics.ScreenCapture.TryGetDataDirectory(args, out var dataDirectory))
+        {
+            paths = new AppPaths(dataDirectory);
+        }
+#endif
         try
         {
             await Task.Run(() => DataDirectorySecurity.EnsureCreatedAndRestricted(paths.DataDirectory));
@@ -86,6 +92,7 @@ internal partial class App : System.Windows.Application
 
         var database = _services.GetRequiredService<IAppDatabase>();
         await database.InitializeAsync(CancellationToken.None);
+        await RecoverInterruptedScansAsync(_services.GetRequiredService<IScanStore>(), database);
 
         var theme = _services.GetRequiredService<ThemeService>();
         theme.Apply(await LoadThemePreferenceAsync(_services.GetRequiredService<IUserPreferences>()));
@@ -101,10 +108,35 @@ internal partial class App : System.Windows.Application
 #if DEBUG
         if (Diagnostics.ScreenCapture.TryGetOutputDirectory(args, out var captureDirectory))
         {
-            await Diagnostics.ScreenCapture.CaptureAllAsync(window, shell, theme, _services.GetRequiredService<IUiDispatcher>(), captureDirectory);
+            await Diagnostics.ScreenCapture.CaptureAllAsync(window, shell, theme, _services, args, captureDirectory);
             Shutdown(0);
         }
 #endif
+    }
+
+    /// <summary>
+    /// Marks scans left running by a previous process as interrupted (docs/04-functional-specification.md §11).
+    /// Runs before any new scan can start, so it never touches a live session.
+    /// </summary>
+    private async Task RecoverInterruptedScansAsync(IScanStore store, IAppDatabase database)
+    {
+        if (!database.Health.IsReady)
+        {
+            return;
+        }
+
+        try
+        {
+            var recovered = await store.RecoverInterruptedSessionsAsync(CancellationToken.None);
+            if (recovered > 0)
+            {
+                LogScansRecovered(_logger!, recovered);
+            }
+        }
+        catch (PersistenceException ex)
+        {
+            LogScanRecoveryFailed(_logger!, ex);
+        }
     }
 
     private async Task<AppTheme> LoadThemePreferenceAsync(IUserPreferences preferences)
@@ -171,6 +203,12 @@ internal partial class App : System.Windows.Application
 
     [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Error, Message = "Unhandled {Source} exception")]
     private static partial void LogUnhandled(ILogger logger, string source, Exception exception);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "{Count} unfinished scans from an earlier run were marked as interrupted")]
+    private static partial void LogScansRecovered(ILogger logger, int count);
+
+    [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Error, Message = "Interrupted scans could not be recovered")]
+    private static partial void LogScanRecoveryFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Warning, Message = "Theme preference could not be read; using the Windows setting")]
     private static partial void LogPreferenceReadFailed(ILogger logger, Exception exception);

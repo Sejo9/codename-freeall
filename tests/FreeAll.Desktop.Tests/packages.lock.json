@@ -201,7 +201,8 @@
       "freeall.application": {
         "type": "Project",
         "dependencies": {
-          "FreeAll.Core": "[0.0.1, )"
+          "FreeAll.Core": "[0.0.1, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "freeall.cleanup": {

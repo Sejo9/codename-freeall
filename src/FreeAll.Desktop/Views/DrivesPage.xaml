@@ -13,19 +13,79 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Toolbar -->
-    <StackPanel Grid.Row="0" Margin="0,0,0,16" Orientation="Horizontal">
-      <Button Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh drive list">
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
-          <TextBlock Text="Refresh" />
-        </StackPanel>
-      </Button>
-      <TextBlock Margin="16,0,0,0"
-                 VerticalAlignment="Center"
+    <!-- Toolbar and scan scope -->
+    <StackPanel Grid.Row="0" Margin="0,0,0,16">
+      <StackPanel Orientation="Horizontal">
+        <Button Command="{Binding ScanDefaultDrivesCommand}" Style="{StaticResource Button.Accent}">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE721;" />
+            <TextBlock Text="Scan default drives" />
+          </StackPanel>
+        </Button>
+        <Button Margin="8,0,0,0" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh drive list">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
+            <TextBlock Text="Refresh" />
+          </StackPanel>
+        </Button>
+        <TextBlock Margin="16,0,0,0"
+                   VerticalAlignment="Center"
+                   Style="{StaticResource Typography.Caption}"
+                   Text="{Binding LastRefreshed, StringFormat='Checked at {0:t}'}"
+                   Visibility="{Binding LastRefreshed, Converter={StaticResource NullToVisibility}}" />
+      </StackPanel>
+      <TextBlock MaxWidth="900"
+                 Margin="0,8,0,0"
+                 HorizontalAlignment="Left"
                  Style="{StaticResource Typography.Caption}"
-                 Text="{Binding LastRefreshed, StringFormat='Checked at {0:t}'}"
-                 Visibility="{Binding LastRefreshed, Converter={StaticResource NullToVisibility}}" />
+                 Text="{Binding ScopeText}"
+                 TextWrapping="Wrap"
+                 Visibility="{Binding ScopeText, Converter={StaticResource NullToVisibility}}" />
+
+      <!-- Running scan -->
+      <Border MaxWidth="900"
+              Margin="0,12,0,0"
+              HorizontalAlignment="Left"
+              Style="{StaticResource Card}"
+              Visibility="{Binding Activity.IsRunning, Converter={StaticResource BoolToVisibility}}">
+        <DockPanel>
+          <StackPanel Margin="16,0,0,0" VerticalAlignment="Center" DockPanel.Dock="Right">
+            <Button HorizontalAlignment="Right" Command="{Binding Activity.CancelCommand}" Content="Cancel scan" />
+            <TextBlock MaxWidth="220"
+                       Margin="0,6,0,0"
+                       Style="{StaticResource Typography.Caption}"
+                       Text="Stops after the folder being read. Results so far are kept as a partial scan."
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel>
+            <TextBlock AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Title}" Text="{Binding Activity.Title}" />
+            <TextBlock Margin="0,2,0,0" Style="{StaticResource Typography.Body}" Text="{Binding Activity.Detail}" Typography.NumeralAlignment="Tabular" />
+            <ProgressBar Margin="0,10,0,8" AutomationProperties.Name="Scan in progress" IsIndeterminate="True" />
+            <TextBlock FontFamily="{StaticResource Font.Monospace}"
+                       FontSize="12"
+                       Foreground="{DynamicResource Color.TextSecondary}"
+                       Text="{Binding Activity.CurrentPath}"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Last result -->
+      <Border MaxWidth="900"
+              Margin="0,12,0,0"
+              HorizontalAlignment="Left"
+              Visibility="{Binding Activity.LastResult, Converter={StaticResource NullToVisibility}}">
+        <Border.Style>
+          <Style TargetType="Border" BasedOn="{StaticResource Banner.Info}">
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding Activity.LastResultNeedsAttention}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Color.WarningBackground}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+        <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Activity.LastResult}" />
+      </Border>
     </StackPanel>
 
     <!-- Loading -->
@@ -120,6 +180,34 @@
                     <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding ScanSelectionText}" />
                   </StackPanel>
 
+                  <DockPanel Margin="0,8,0,0">
+                    <Button Margin="12,0,0,0"
+                            VerticalAlignment="Center"
+                            AutomationProperties.Name="{Binding ShortName, StringFormat='Scan {0}'}"
+                            Command="{Binding DataContext.ScanDriveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}"
+                            Content="Scan"
+                            DockPanel.Dock="Right"
+                            Visibility="{Binding CanScan, Converter={StaticResource BoolToVisibility}}" />
+                    <DockPanel VerticalAlignment="Center">
+                      <TextBlock Margin="0,1,6,0" VerticalAlignment="Top" DockPanel.Dock="Left" FontSize="12">
+                        <TextBlock.Style>
+                          <Style TargetType="TextBlock" BasedOn="{StaticResource Typography.Icon}">
+                            <Setter Property="Text" Value="&#xE81C;" />
+                            <Setter Property="Foreground" Value="{DynamicResource Color.TextSecondary}" />
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding LastScanNeedsAttention}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource Color.Warning}" />
+                                <Setter Property="Text" Value="&#xE7BA;" />
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </TextBlock.Style>
+                      </TextBlock>
+                      <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding LastScanText}" TextWrapping="Wrap" />
+                    </DockPanel>
+                  </DockPanel>
+
                   <Expander Margin="0,12,0,0" Header="Details">
                     <StackPanel Margin="0,4,0,0">
                       <TextBlock Style="{StaticResource FieldLabel}" Text="Mount points" />
@@ -146,6 +234,38 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+        </StackPanel>
+
+        <StackPanel MaxWidth="900" Margin="0,16,0,0" HorizontalAlignment="Left">
+          <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Excluded folders" />
+          <TextBlock Style="{StaticResource Typography.Caption}" Text="Every scan skips these folders and everything inside them. They are not opened or read." TextWrapping="Wrap" />
+          <ItemsControl Margin="0,8,0,0" AutomationProperties.Name="Excluded folders" Focusable="False" ItemsSource="{Binding Exclusions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:ExclusionItemViewModel}">
+                <Border Margin="0,0,0,6" Padding="12,8" Style="{StaticResource Card}">
+                  <DockPanel>
+                    <Button Margin="12,0,0,0"
+                            AutomationProperties.Name="{Binding DisplayPath, StringFormat='Stop excluding {0}'}"
+                            Command="{Binding DataContext.RemoveExclusionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}"
+                            Content="Remove"
+                            DockPanel.Dock="Right" />
+                    <TextBlock Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               DockPanel.Dock="Right"
+                               Style="{StaticResource Typography.Caption}"
+                               Text="{Binding StatusText}" />
+                    <TextBox VerticalAlignment="Center" AutomationProperties.Name="Excluded folder" Style="{StaticResource SelectableMonospace}" Text="{Binding DisplayPath, Mode=OneTime}" />
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Margin="0,4,0,0"
+                     Style="{StaticResource Typography.Caption}"
+                     Text="No folders are excluded."
+                     Visibility="{Binding Exclusions.Count, Converter={StaticResource InverseNullToVisibility}}" />
+          <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding AddExclusionCommand}" Content="Add folder…" />
         </StackPanel>
 
         <StackPanel Margin="0,16,0,0" Visibility="{Binding Problems.Count, Converter={StaticResource NullToVisibility}, FallbackValue=Collapsed}">

@@ -8,5 +8,6 @@
   <c:NullToVisibilityConverter x:Key="InverseNullToVisibility" Invert="True" />
   <c:EqualsToVisibilityConverter x:Key="EqualsToVisibility" />
   <c:ByteSizeConverter x:Key="ByteSize" />
+  <c:InverseBooleanConverter x:Key="InverseBool" />
 
 </ResourceDictionary>

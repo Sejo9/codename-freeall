@@ -1,0 +1,98 @@
+<UserControl x:Class="FreeAll.Desktop.Views.CategoriesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=index:CategoriesViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,12" Visibility="{Binding Sessions.Count, Converter={StaticResource NullToVisibility}}">
+      <ComboBox MinWidth="300"
+                HorizontalAlignment="Left"
+                AutomationProperties.Name="Drive scan"
+                DisplayMemberPath="Label"
+                ItemsSource="{Binding Sessions}"
+                SelectedItem="{Binding SelectedSession}" />
+      <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding TotalText}" />
+      <TextBlock MaxWidth="760"
+                 Margin="0,2,0,0"
+                 HorizontalAlignment="Left"
+                 Style="{StaticResource Typography.Caption}"
+                 Text="A category describes what a file is, from its extension or, when the extension isn't recognized, its folder. It never means a file is safe to remove. Files are not opened to classify them."
+                 TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Border Grid.Row="1"
+            MaxWidth="560"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Card}"
+            Visibility="{Binding Sessions.Count, Converter={StaticResource InverseNullToVisibility}}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="No scan results yet" />
+        <TextBlock Margin="0,4,0,12" Style="{StaticResource Typography.Body}" Text="Scan a drive to see how its storage divides into images, videos, documents and other kinds of files." />
+        <Button HorizontalAlignment="Left" Command="{Binding GoToDrivesCommand}" Content="Go to Drives" Style="{StaticResource Button.Accent}" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer Grid.Row="1"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  Visibility="{Binding Sessions.Count, Converter={StaticResource NullToVisibility}}">
+      <ItemsControl MaxWidth="980" HorizontalAlignment="Left" AutomationProperties.Name="Categories" Focusable="False" ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="{x:Type index:CategoryRowViewModel}">
+            <Border Margin="0,0,0,8" AutomationProperties.Name="{Binding AutomationName}" Focusable="True" Style="{StaticResource Card}">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,16,0">
+                  <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding Name}" />
+                  <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding DetailText}" Typography.NumeralAlignment="Tabular" />
+                  <ProgressBar Margin="0,8,0,6" AutomationProperties.Name="Share of scanned storage" Style="{StaticResource UsageMeter}" Value="{Binding Share, Mode=OneTime}" />
+                  <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding RuleText}" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource Typography.Title}"
+                           Text="{Binding SizeText}"
+                           Typography.NumeralAlignment="Tabular" />
+                <Button Grid.Column="2"
+                        Margin="16,0,0,0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="{Binding Name, StringFormat='Show the largest {0}'}"
+                        Command="{Binding DataContext.ShowLargestCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                        CommandParameter="{Binding}"
+                        Content="Largest files" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <Border Grid.Row="1"
+            MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Scan results couldn't be read" />
+        <TextBlock Margin="0,4,0,8" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" />
+        <Button HorizontalAlignment="Left" Command="{Binding ReloadCommand}" Content="Try again" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

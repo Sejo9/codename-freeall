@@ -2,8 +2,9 @@
 
 ## Current blockers
 
-No product-level decision remains open for the operating system or UI
-framework. Implementation is not yet complete.
+One product question is open: BLK-017 (folders that are cloud
+placeholders, such as OneDrive Files On-Demand). It does not block
+development; the current behaviour follows PR-003 as written.
 
 ## Technical validation queue
 
@@ -40,9 +41,18 @@ framework. Implementation is not yet complete.
   BLK-008        Alternate data Scope and duplicate   Product decision before     DEFERRED
                  streams        semantics             implementing ADS inventory  
 
-  BLK-009        Performance    Must be based on real Benchmark baseline and      OPEN
+  BLK-009        Performance    Must be based on real Benchmark baseline and      IN PROGRESS
                  targets        hardware              proposed SLOs               
   ----------------------------------------------------------------------------------------------
+
+## Validation evidence (Phase 2, 2026-11-03)
+
+### BLK-009 --- Performance targets: IN PROGRESS (baseline only)
+
+A first baseline was recorded on the development PC (NVMe system drive,
+standard user, Debug build, default 4 workers), in `18-development-log.md`.
+It is one machine and one drive, so no target is set yet. HDD, SATA SSD,
+USB and large-fan-out runs are still needed.
 
 ## Validation evidence (Phase 1, 2026-11-02)
 
@@ -103,31 +113,45 @@ Findings so far:
 Remaining evidence: manual high-contrast and Narrator pass, and a
 review of dialogs, context menus and tooltips as those screens arrive.
 
-## Product-owner questions (opened 2026-11-02)
+## Product-owner questions
 
-BLK-010 to BLK-014 were resolved by the product owner on 2026-11-02 and
-recorded as DEC-022 to DEC-026. The records below are kept for history.
+### BLK-017 --- Cloud placeholder folders (OneDrive Files On-Demand)
 
-### BLK-016 --- Default scan selection for unmounted fixed volumes
-
--   **Status:** OPEN (implemented as proposed in TD-012, pending
-    confirmation)
--   **Affected features:** F-007, F-009; DEC-015
--   **Question:** Fixed volumes without a drive letter or folder mount
-    point (EFI system and recovery partitions) are shown but are not
-    part of the default scan; the user can choose them explicitly. Is
-    this acceptable?
--   **Impact:** Default scan scope.
+-   **Status:** OPEN (opened 2026-11-03)
+-   **Affected features:** F-009, F-012, F-013; PR-002, PR-003
+-   **Question:** With OneDrive Files On-Demand (and other cloud sync
+    clients), synced folders are reparse points with a cloud tag. PR-003
+    says reparse points are not followed, so FreeAll currently records
+    these folders as "not followed" and their contents are missing from
+    the index. They are real folders on the same drive, not links. Should
+    FreeAll list them?
+-   **Why clarification is required:** It changes the traversal rule in
+    PR-003 and can cause network activity: listing a folder whose
+    contents are only in the cloud makes the sync client fetch that
+    folder's file list from the cloud (file contents are never
+    downloaded, because FreeAll does not open files).
+-   **Options:** (a) keep the current behaviour; (b) list cloud
+    placeholder folders, never links (junctions, symbolic links, mount
+    points); (c) make (b) a setting, off by default.
+-   **Recommendation:** (b). Show cloud-only files with their logical
+    size and their real (often zero) space on disk, labelled "cloud
+    file", so the totals stay honest.
+-   **Security/data/UX impact:** No privilege change. Possible cloud
+    requests for folder listings. Today, OneDrive content is invisible in
+    sizes, and the scan says so.
+-   **Decision owner:** Product owner.
 
 ### BLK-015 --- Source-code publication and licence
 
--   **Status:** OPEN
--   **Affected:** repository licence file, free signing programmes
-    (most require an OSI-approved licence)
--   **Question:** DEC-024 makes FreeAll free to use and redistribute.
-    Will the source code also be published, and if so under which
-    licence (for example MIT)?
--   **Impact:** Does not block development.
+-   **Status:** RESOLVED → DEC-027 (2026-11-03). Source is public; MIT
+    licence applied as the recommended permissive choice.
+
+### BLK-016 --- Default scan selection for unmounted fixed volumes
+
+-   **Status:** RESOLVED → DEC-028 (2026-11-03). TD-012 confirmed.
+
+BLK-010 to BLK-014 were resolved by the product owner on 2026-11-02 and
+recorded as DEC-022 to DEC-026. The records below are kept for history.
 
 ### BLK-010 --- Recycle Bin unavailable on removable volumes
 

@@ -64,7 +64,7 @@ public sealed class ShellViewModelTests
     public void Status_reflects_database_health_after_refresh()
     {
         var database = new FakeDatabase(DatabaseState.NotInitialized);
-        var shell = new ShellViewModel([new NavigationItem("a", "A", "x", () => new TestPage())], database, NullLogger<ShellViewModel>.Instance);
+        var shell = new ShellViewModel([new NavigationItem("a", "A", "x", () => new TestPage())], database, TestServices.Activity(), NullLogger<ShellViewModel>.Instance);
         Assert.Equal("Database starting", shell.DatabaseStatusText);
 
         database.Health = new DatabaseHealth(DatabaseState.Unavailable, "Broken.", null);
@@ -88,6 +88,7 @@ public sealed class ShellViewModelTests
                 new NavigationItem("b", "B", "", () => created[1]),
             ],
             new FakeDatabase(),
+            TestServices.Activity(),
             NullLogger<ShellViewModel>.Instance);
     }
 

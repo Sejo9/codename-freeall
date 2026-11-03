@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Infrastructure against real SQLite files, ACLs and log files in disposable temp folders. -->
+  <!-- Infrastructure against real SQLite files, ACLs and log files, and the scan pipeline end to end, in disposable temp folders. -->
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/FreeAll.Infrastructure/FreeAll.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Scanner/FreeAll.Scanner.csproj" />
   </ItemGroup>
 
 </Project>

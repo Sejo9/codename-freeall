@@ -168,3 +168,121 @@ Phase 2: persisted volume identity (`Drives` table), streaming scanner
 with bounded channels, scan sessions and completeness accounting,
 reparse-point handling, directory aggregation, exclusions and
 cancellation, and the index-backed explorer.
+
+## 2026-11-03 --- Product-owner decisions and Phase 2: scanner and storage explorer
+
+### Decisions received
+
+-   BLK-015 → DEC-027: the source code is public so others can benefit.
+    MIT was applied as the recommended permissive licence (`LICENSE`).
+-   BLK-016 → DEC-028: unmounted fixed volumes (EFI, recovery) stay out of
+    default scans (TD-012 confirmed).
+
+### Completed
+
+-   **Scanner (F-009 to F-013):** read-only streaming scanner over volume
+    GUID paths using bulk directory information
+    (`GetFileInformationByHandleEx`), with a FAT/exFAT fallback. Records
+    sizes, allocation, timestamps, attributes, reparse tags and file IDs
+    without opening files. Reparse points are never followed, including a
+    folder replaced by a link mid-scan. Parallel depth-first workers,
+    bounded batches and a bounded channel; large folders are flushed while
+    they are listed. Cancellation keeps a consistent partial result
+    (TD-018).
+-   **Index (schema version 2):** drives by GUID, scan sessions with scope,
+    exclusions, reparse policy, versions, counts, state and a
+    plain-language note; folders, files, errors (first 10,000) and
+    category totals per session. Recursive folder totals and incomplete
+    counts computed bottom-up in SQL at completion. Older indexes pruned
+    per volume; interrupted sessions recovered at start-up (TD-019).
+-   **Completeness (F-011):** complete only when the whole defined scope
+    was read and saved; links and exclusions are part of the scope and
+    disclosed; items removed during the scan don't count against it
+    (TD-020).
+-   **Classification (F-015):** versioned extension-then-location rules
+    with the reason stored per file; location labels (TD-021).
+-   **Coordinator:** one run at a time, volumes in order, throttled
+    progress (4 per second), cancellation, store failure stops the scanner
+    and fails the session.
+-   **UI:** Drives page scans default or single drives, shows the scan
+    scope before starting, live progress with cancel, last result per
+    drive and excluded folders (add with a folder picker, remove). Storage
+    Explorer, Large Files, File Categories and Scan History read from the
+    index (TD-023). The status bar shows scan state. The synthetic
+    explorer prototype was removed.
+-   **Docs:** DEC-027, DEC-028, TD-018 to TD-024, BLK-017 (new question),
+    BLK-009 baseline, checklist evidence.
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: see the result
+below. Automated tests by suite:
+
+-   Architecture: 40
+-   Core: 141
+-   Application: 29
+-   Scanner: 29 (1 skipped: creating symbolic links needs Developer Mode
+    or elevation on the development PC)
+-   Integration: 37
+-   Desktop: 51
+
+**Performance baseline (BLK-009):** development PC, NVMe system drive
+(C:, 343 GB, 332 GB used), standard user, Debug build, 4 workers,
+results written to a separate data folder (`--capture-scan C:\
+--data-dir …`):
+
+  Measure                               Run 1                Run 2
+  ------------------------------------- -------------------- --------------------
+  Files / folders indexed               1,000,564 / 291,681  1,000,698 / 291,701
+  Total time (scan, save, aggregate)    132 s                90 s
+  Throughput                            7,600 files/s        11,100 files/s
+  Peak working set                      248 MB               233 MB
+  UI idle delay during scan (max)       546 ms               156 ms
+  Database size (+ WAL)                 212 MB (+64 MB)      216 MB (+70 MB)
+  Open the largest folder in Explorer   547 ms               34 ms
+
+Run 2 includes the query-plan fix and probably a warmer file cache. The
+scan was correctly `Partial`: 116 folders were access-denied for a
+standard user (for example `Windows\Temp`, `SysWOW64\Tasks`, other
+users' Recycle Bin folders), and 2,420 reparse points were not followed.
+Peak memory stayed under 250 MB for a million files, which matches the
+bounded-memory design (TD-018).
+
+### Defects found and fixed during Phase 2
+
+-   Test helper hang: .NET's recursive enumeration follows junctions, so
+    cleanup of a tree with a junction loop never finished (test code
+    only; the scanner was not affected).
+-   NTFS refreshes a folder's metadata copy in its parent's index lazily;
+    the "scan changes nothing" test now reads each item directly
+    (TD-022 caveat).
+-   Query plans: without table statistics SQLite scanned a session's whole
+    folder range for folder listings and sorted all folders for "largest
+    folders". Index use is now fixed in the SQL and an index on folder
+    size was added (listing 117 ms → 0.2 ms, largest folders 393 ms →
+    4 ms on a 1M-file index). Migration 0002 was amended before its
+    first commit; no database outside test folders had applied it.
+-   Visual review: the file grids stayed light in dark mode (a style based
+    on the Fluent DataGrid style through StaticResource keeps its original
+    theme); status icons kept their default glyph because a local value
+    overrode the trigger; the last-scan line was clipped; numbers touched
+    the next column; the category explanation lower-cased "AppData";
+    virtual disk images (.vhd, .vhdx, .vmdk) were not classified.
+
+### Open
+
+-   BLK-017: cloud placeholder folders (OneDrive) are not listed today;
+    product-owner decision needed.
+-   F-007: device arrival/removal notifications; manual drive-letter
+    change and disconnect-during-scan tests.
+-   F-014/F-016: review queue and multi-select (Phase 6), search and
+    filters (F-017), age and path filters for Large Files.
+-   F-018: retention setting, scan comparison, export.
+-   Hard-link-aware totals (F-028). Elevated scanning (DEC-023, with the
+    helper in Phase 6). TD-014 exception-message redaction gap.
+-   CI has not yet run on GitHub (the repository has not been pushed).
+
+### Next
+
+Phase 3: incremental scan foundation, USN Journal where validated,
+search, treemap and charts, scan history comparison and exports.

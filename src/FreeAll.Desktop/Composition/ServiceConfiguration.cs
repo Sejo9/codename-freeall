@@ -1,10 +1,12 @@
 using FreeAll.Application.Abstractions;
+using FreeAll.Application.Scanning;
 using FreeAll.Core.Diagnostics;
 using FreeAll.Desktop.Services;
 using FreeAll.Desktop.ViewModels;
-using FreeAll.Desktop.ViewModels.Explorer;
+using FreeAll.Desktop.ViewModels.Index;
 using FreeAll.Infrastructure.Persistence;
 using FreeAll.Infrastructure.Persistence.Migrations;
+using FreeAll.Scanner.Enumeration;
 using FreeAll.Scanner.Volumes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,6 +32,21 @@ internal static class ServiceConfiguration
         services.AddSingleton<IAppDatabase>(sp => sp.GetRequiredService<SqliteAppDatabase>());
         services.AddSingleton<IUserPreferences, SqliteUserPreferences>();
         services.AddSingleton<IVolumeDiscovery, WindowsVolumeDiscovery>();
+        services.AddSingleton<IVolumePathResolver, WindowsVolumePathResolver>();
+        services.AddSingleton<IVolumeScanner, WindowsVolumeScanner>();
+        services.AddSingleton<SqliteScanStore>();
+        services.AddSingleton<IScanStore>(sp => sp.GetRequiredService<SqliteScanStore>());
+        services.AddSingleton<IScanIndex>(sp => sp.GetRequiredService<SqliteScanStore>());
+        services.AddSingleton<IScanExclusionStore, SqliteExclusionStore>();
+        services.AddSingleton(ScanOptions.Default);
+        services.AddSingleton(sp => new ScanCoordinator(
+            sp.GetRequiredService<IVolumeScanner>(),
+            sp.GetRequiredService<IScanStore>(),
+            sp.GetRequiredService<IScanExclusionStore>(),
+            sp.GetRequiredService<IAppDatabase>(),
+            sp.GetRequiredService<ScanOptions>(),
+            sp.GetRequiredService<ILogger<ScanCoordinator>>()));
+        services.AddSingleton<IScanCoordinator>(sp => sp.GetRequiredService<ScanCoordinator>());
 
         // Desktop services
         services.AddSingleton(application);
@@ -38,14 +55,23 @@ internal static class ServiceConfiguration
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(application.Dispatcher));
         services.AddSingleton<IUserNotifier, MessageBoxNotifier>();
         services.AddSingleton<IShellLauncher, ExplorerShellLauncher>();
+        services.AddSingleton<IClipboardService, WpfClipboardService>();
+        services.AddSingleton<IFolderPicker, WpfFolderPicker>();
+        services.AddSingleton<INavigator>(sp => sp.GetRequiredService<ShellViewModel>());
+        services.AddSingleton<ScanActivityViewModel>();
+        services.AddSingleton<EntryActions>();
 
         // Pages and shell
         services.AddTransient<DrivesViewModel>();
         services.AddTransient<SettingsViewModel>();
-        services.AddTransient<ExplorerPrototypeViewModel>();
+        services.AddTransient<ExplorerViewModel>();
+        services.AddTransient<LargeFilesViewModel>();
+        services.AddTransient<CategoriesViewModel>();
+        services.AddTransient<ScanHistoryViewModel>();
         services.AddSingleton(sp => new ShellViewModel(
             CreateNavigation(sp),
             sp.GetRequiredService<IAppDatabase>(),
+            sp.GetRequiredService<ScanActivityViewModel>(),
             sp.GetRequiredService<ILogger<ShellViewModel>>()));
         services.AddSingleton<MainWindow>();
 
@@ -57,14 +83,14 @@ internal static class ServiceConfiguration
     [
         Placeholder("overview", "Overview", "", "Storage summary, scan completeness, largest growth areas and recent activity."),
         new("drives", "Drives", "", sp.GetRequiredService<DrivesViewModel>),
-        new("explorer", "Storage Explorer", "", sp.GetRequiredService<ExplorerPrototypeViewModel>),
-        Placeholder("categories", "File Categories", "", "Storage grouped by file category, such as images, videos, documents and archives."),
-        Placeholder("large", "Large Files", "", "The largest files and folders, with filters by volume, category, age and path."),
+        new("explorer", "Storage Explorer", "", sp.GetRequiredService<ExplorerViewModel>),
+        new("categories", "File Categories", "", sp.GetRequiredService<CategoriesViewModel>),
+        new("large", "Large Files", "", sp.GetRequiredService<LargeFilesViewModel>),
         Placeholder("residue", "Application Residue", "", "Possible leftovers from removed applications, each with its evidence, confidence and risk."),
         Placeholder("temporary", "Temporary Files", "", "Known temporary and cache locations, with what each one is for and the risk of removing it."),
         Placeholder("duplicates", "Duplicate Files", "", "Exact duplicate files within each drive, verified byte for byte. Nothing is selected for removal automatically."),
         Placeholder("windows", "Windows Storage", "", "How Windows itself uses storage, and the cleanup options Windows supports."),
-        Placeholder("history", "Scan History", "", "Past scans, how complete they were, and exports."),
+        new("history", "Scan History", "", sp.GetRequiredService<ScanHistoryViewModel>),
         Placeholder("activity", "Activity", "", "Cleanup, quarantine and restore operations with per-item results."),
         new("settings", "Settings", "", sp.GetRequiredService<SettingsViewModel>),
     ];

@@ -1,0 +1,142 @@
+<UserControl x:Class="FreeAll.Desktop.Views.ScanHistoryPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=index:ScanHistoryViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <TextBlock Style="{StaticResource Typography.Body}"
+               Text="No scans yet. Scans you run from the Drives page are listed here with their results and errors."
+               Visibility="{Binding Sessions.Count, Converter={StaticResource InverseNullToVisibility}}" />
+
+    <Grid Visibility="{Binding Sessions.Count, Converter={StaticResource NullToVisibility}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="5*" MinWidth="380" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="4*" MinWidth="340" />
+      </Grid.ColumnDefinitions>
+
+      <Border Padding="0" Style="{StaticResource Card}">
+        <DataGrid AutomationProperties.Name="Scans"
+                  CanUserSortColumns="False"
+                  ItemsSource="{Binding Sessions}"
+                  SelectedItem="{Binding SelectedSession}"
+                  AutoGenerateColumns="False"
+                  BorderThickness="0"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True"
+                  EnableColumnVirtualization="True"
+                  EnableRowVirtualization="True"
+                  GridLinesVisibility="None"
+                  HeadersVisibility="Column"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.ScrollUnit="Item"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+          <DataGrid.Columns>
+            <DataGridTextColumn ElementStyle="{StaticResource Cell.Secondary}" Width="*" MinWidth="120" Binding="{Binding DriveText}" Header="Drive" />
+            <DataGridTemplateColumn Width="110" MinWidth="110" Header="Result">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type index:SessionRowViewModel}">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" FontSize="12">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource Typography.Icon}">
+                          <Setter Property="Text" Value="&#xE73E;" />
+                          <Setter Property="Foreground" Value="{DynamicResource Color.Success}" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding NeedsAttention}" Value="True">
+                              <Setter Property="Foreground" Value="{DynamicResource Color.Warning}" />
+                              <Setter Property="Text" Value="&#xE7BA;" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock VerticalAlignment="Center" Text="{Binding StateText}" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn ElementStyle="{StaticResource Cell.Secondary}" Width="140" MinWidth="140" Binding="{Binding Started, StringFormat=g}" Header="Started" />
+            <DataGridTextColumn Width="90" MinWidth="90" Binding="{Binding FilesText}" ElementStyle="{StaticResource Cell.Numeric}" Header="Files" />
+            <DataGridTextColumn Width="80" MinWidth="80" Binding="{Binding LogicalBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="Size" />
+            <DataGridTextColumn Width="64" MinWidth="64" Binding="{Binding ErrorsText}" ElementStyle="{StaticResource Cell.Numeric}" Header="Errors" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" AutomationProperties.Name="Resize details pane" />
+
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border MaxHeight="420" Margin="0,0,0,12" Style="{StaticResource Card}">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ItemsControl AutomationProperties.Name="Scan details" Focusable="False" ItemsSource="{Binding Details}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type index:DetailField}">
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                    <TextBox AutomationProperties.Name="{Binding Label}"
+                             Style="{StaticResource SelectableMonospace}"
+                             Text="{Binding Value, Mode=OneWay}"
+                             Visibility="{Binding IsPath, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Value}" Visibility="{Binding IsPath, Converter={StaticResource InverseBoolToVisibility}}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <Border Grid.Row="1" Padding="0" Style="{StaticResource Card}">
+          <DockPanel>
+            <TextBlock Margin="12,8" DockPanel.Dock="Top" Style="{StaticResource Typography.Caption}" Text="{Binding IssuesText}" />
+            <DataGrid AutomationProperties.Name="Errors"
+                      CanUserSortColumns="False"
+                      ItemsSource="{Binding Issues}"
+                      AutoGenerateColumns="False"
+                      BorderThickness="0"
+                      CanUserReorderColumns="True"
+                      CanUserResizeColumns="True"
+                      EnableColumnVirtualization="True"
+                      EnableRowVirtualization="True"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.ScrollUnit="Item"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+              <DataGrid.Columns>
+                <DataGridTextColumn Width="*" MinWidth="200" Binding="{Binding Path}" ElementStyle="{StaticResource Cell.Secondary}" Header="Location" />
+                <DataGridTextColumn ElementStyle="{StaticResource Cell.Secondary}" Width="150" MinWidth="150" Binding="{Binding Problem}" Header="Problem" />
+                <DataGridTextColumn Width="60" MinWidth="60" Binding="{Binding Code}" ElementStyle="{StaticResource Cell.Numeric}" Header="Code" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Scan history couldn't be read" />
+        <TextBlock Margin="0,4,0,8" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" />
+        <Button HorizontalAlignment="Left" Command="{Binding ReloadCommand}" Content="Try again" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

@@ -2,22 +2,26 @@ using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FreeAll.Application.Abstractions;
+using FreeAll.Core.Classification;
+using FreeAll.Desktop.Services;
+using FreeAll.Desktop.ViewModels.Index;
 using Microsoft.Extensions.Logging;
 
 namespace FreeAll.Desktop.ViewModels;
 
 /// <summary>Main window state: navigation, current page and the status region (docs/07-ui-ux-design.md §2).</summary>
-internal sealed partial class ShellViewModel : ObservableObject
+internal sealed partial class ShellViewModel : ObservableObject, INavigator
 {
     private readonly IAppDatabase _database;
     private readonly ILogger<ShellViewModel> _logger;
 
-    public ShellViewModel(IReadOnlyList<NavigationItem> navigationItems, IAppDatabase database, ILogger<ShellViewModel> logger)
+    public ShellViewModel(IReadOnlyList<NavigationItem> navigationItems, IAppDatabase database, ScanActivityViewModel scanActivity, ILogger<ShellViewModel> logger)
     {
         ArgumentOutOfRangeException.ThrowIfZero(navigationItems.Count);
 
         NavigationItems = navigationItems;
         _database = database;
+        ScanActivity = scanActivity;
         _logger = logger;
         IsNavigationExpanded = true;
         SelectedItem = navigationItems[0];
@@ -34,7 +38,8 @@ internal sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsNavigationExpanded { get; set; }
 
-    public string ScanStatusText { get; } = "No scan running";
+    /// <summary>Scan state shown in the status region.</summary>
+    public ScanActivityViewModel ScanActivity { get; }
 
     public bool IsDatabaseReady => _database.Health.IsReady;
 
@@ -52,6 +57,24 @@ internal sealed partial class ShellViewModel : ObservableObject
     public void NavigateTo(string key)
     {
         SelectedItem = NavigationItems.FirstOrDefault(i => i.Key == key) ?? SelectedItem;
+    }
+
+    public async Task ShowFolderAsync(long sessionId, int directoryKey)
+    {
+        NavigateTo("explorer");
+        if (CurrentPage is ExplorerViewModel explorer)
+        {
+            await explorer.OpenFolderAsync(sessionId, directoryKey);
+        }
+    }
+
+    public async Task ShowLargestFilesAsync(long sessionId, FileCategory? category)
+    {
+        NavigateTo("large");
+        if (CurrentPage is LargeFilesViewModel largeFiles)
+        {
+            await largeFiles.ShowAsync(sessionId, category);
+        }
     }
 
     /// <summary>Re-reads state owned by other services, e.g. after database initialization.</summary>
