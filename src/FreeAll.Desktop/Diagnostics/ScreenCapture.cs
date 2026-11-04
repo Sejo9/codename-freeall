@@ -14,6 +14,7 @@ using FreeAll.Application.Scanning;
 using FreeAll.Core.Scanning;
 using FreeAll.Desktop.Services;
 using FreeAll.Desktop.ViewModels;
+using FreeAll.Desktop.ViewModels.Duplicates;
 using FreeAll.Desktop.ViewModels.Index;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +26,7 @@ namespace FreeAll.Desktop.Diagnostics;
 /// <item><c>--capture-screens &lt;folder&gt;</c> renders every page in light and dark themes to PNG files and exits.</item>
 /// <item><c>--capture-scan &lt;path&gt;</c> first scans that folder or drive and records metrics in <c>metrics.txt</c>.</item>
 /// <item><c>--data-dir &lt;folder&gt;</c> uses another data folder, so review runs don't touch the real database.</item>
+/// <item><c>--capture-duplicates-all</c> also times a duplicate analysis that includes system folders.</item>
 /// </list>
 /// </summary>
 internal static class ScreenCapture
@@ -32,6 +34,7 @@ internal static class ScreenCapture
     private const string CaptureSwitch = "--capture-screens";
     private const string ScanSwitch = "--capture-scan";
     private const string DataSwitch = "--data-dir";
+    private const string AllFoldersSwitch = "--capture-duplicates-all";
 
     public static bool TryGetOutputDirectory(string[] args, [NotNullWhen(true)] out string? directory) => TryGetPath(args, CaptureSwitch, out directory);
 
@@ -50,7 +53,10 @@ internal static class ScreenCapture
         {
             theme.Apply(AppTheme.Light);
             metrics.AddRange(await ScanAsync(window, shell, services, ui, scanPath, directory));
+            metrics.AddRange(await FindDuplicatesAsync(window, shell, services, ui, directory, args.Contains(AllFoldersSwitch)));
         }
+
+        await CleanupDemoAsync(services, directory);
 
         foreach (var appTheme in new[] { AppTheme.Light, AppTheme.Dark })
         {
@@ -60,6 +66,34 @@ internal static class ScreenCapture
                 shell.SelectedItem = item;
                 await SettleAsync(ui);
                 Save(window, Path.Combine(directory, $"{appTheme}-{item.Key}.png"));
+            }
+
+            shell.NavigateTo("activity");
+            await SettleAsync(ui);
+            if (shell.CurrentPage is ViewModels.Cleanup.ActivityViewModel activityPage)
+            {
+                if (activityPage.Operations.Count > 0)
+                {
+                    activityPage.SelectedOperation = activityPage.Operations[0];
+                    await activityPage.PendingItems;
+                    await SettleAsync(ui);
+                    Save(window, Path.Combine(directory, $"{appTheme}-activity-selected.png"));
+                }
+
+                activityPage.ShowQuarantine = true;
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-activity-quarantine.png"));
+                activityPage.ShowQuarantine = false;
+            }
+
+            shell.NavigateTo("duplicates");
+            await SettleAsync(ui);
+            if (shell.CurrentPage is DuplicatesViewModel duplicates && duplicates.Groups.Count > 0)
+            {
+                duplicates.SelectedGroup = duplicates.Groups[0];
+                await duplicates.PendingCopies;
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-duplicates-selected.png"));
             }
 
             // Selected rows show the inspector.
@@ -106,6 +140,22 @@ internal static class ScreenCapture
             shell.ShowReviewQueue();
             await SettleAsync(ui);
             Save(window, Path.Combine(directory, $"{appTheme}-review.png"));
+
+            // The cleanup review only reads: nothing is run here. Selecting permanent deletion shows its warning state.
+            var queued = services.GetRequiredService<FreeAll.Cleanup.Review.ReviewQueueService>();
+            if (queued.Items.Count > 0)
+            {
+                await shell.ShowCleanupAsync(queued.Items);
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-cleanup-review.png"));
+                if (shell.CurrentPage is ViewModels.Cleanup.CleanupReviewViewModel cleanup)
+                {
+                    cleanup.SelectedDestination = cleanup.Destinations[^1];
+                    await SettleAsync(ui);
+                    Save(window, Path.Combine(directory, $"{appTheme}-cleanup-permanent.png"));
+                    cleanup.SelectedDestination = null;
+                }
+            }
 
             shell.NavigateTo("history");
             await SettleAsync(ui);
@@ -202,6 +252,137 @@ internal static class ScreenCapture
             string.Format(culture, "scan: UI idle delay while scanning: median {0:F0} ms, max {1:F0} ms ({2} samples)", Median(uiDelays), uiDelays.DefaultIfEmpty(0).Max(), uiDelays.Count),
             string.Format(culture, "scan: database {0:N0} MB (+ WAL {1:N0} MB)", database.Exists ? database.Length >> 20 : 0, wal.Exists ? wal.Length >> 20 : 0),
         ];
+    }
+
+    /// <summary>
+    /// Gives Activity something to show: quarantines two files this method creates in the capture folder,
+    /// and lists one that is already gone. It never touches anything it didn't make, or anything a scan found.
+    /// </summary>
+    private static async Task CleanupDemoAsync(IServiceProvider services, string directory)
+    {
+        var folder = Path.Combine(directory, "cleanup-demo");
+        Directory.CreateDirectory(folder);
+        var resolver = services.GetRequiredService<IVolumePathResolver>();
+        var items = new List<ReviewItem>();
+        foreach (var name in new[] { "old report.pdf", "backup copy.zip", "already gone.tmp" })
+        {
+            var path = Path.Combine(folder, name);
+            await File.WriteAllBytesAsync(path, new byte[200_000 + items.Count]);
+            var info = new FileInfo(path);
+            if (!resolver.TryResolve(path, out var volume, out var relative))
+            {
+                return;
+            }
+
+            items.Add(new ReviewItem(0, volume, relative, false, info.Length, info.Length, null, null, info.LastWriteTimeUtc, Core.Review.ReviewOrigin.LargeFiles, 1, DateTime.UtcNow));
+        }
+
+        var plan = await services.GetRequiredService<FreeAll.Cleanup.Planning.CleanupPlanner>().PrepareAsync(items, CancellationToken.None);
+        File.Delete(Path.Combine(folder, "already gone.tmp"));
+        var request = new Application.Cleanup.CleanupRequest(plan, Core.Cleanup.CleanupMode.QuarantineCentral, Path.Combine(directory, "cleanup-demo-quarantine-parent"), "Screen capture demonstration on files made for it");
+        Directory.CreateDirectory(request.CentralFolder!);
+        await services.GetRequiredService<FreeAll.Cleanup.Execution.CleanupExecutor>().ExecuteAsync(request, null, CancellationToken.None);
+    }
+
+    /// <summary>Runs the duplicate analysis twice (the second run uses saved hashes), and writes the largest groups to a text file for review.</summary>
+    private static async Task<List<string>> FindDuplicatesAsync(Window window, ShellViewModel shell, IServiceProvider services, IUiDispatcher ui, string directory, bool allFolders)
+    {
+        shell.NavigateTo("duplicates");
+        await SettleAsync(ui);
+        if (shell.CurrentPage is not DuplicatesViewModel page || page.SelectedDrive is null)
+        {
+            return ["duplicates: no scan"];
+        }
+
+        var culture = CultureInfo.InvariantCulture;
+        var process = Process.GetCurrentProcess();
+        var stopwatch = Stopwatch.StartNew();
+        var run = page.FindCommand.ExecuteAsync(null);
+
+        var uiDelays = new List<double>();
+        var captured = false;
+        while (!run.IsCompleted)
+        {
+            await Task.Delay(500);
+            var probe = Stopwatch.StartNew();
+            await ui.WaitForIdleAsync();
+            uiDelays.Add(probe.Elapsed.TotalMilliseconds);
+            if (!captured && stopwatch.Elapsed > TimeSpan.FromSeconds(2))
+            {
+                Save(window, Path.Combine(directory, "Light-duplicates-running.png"));
+                captured = true;
+            }
+        }
+
+        await run;
+        var first = stopwatch.Elapsed;
+        process.Refresh();
+        var firstRun = page.Run!;
+
+        stopwatch.Restart();
+        await page.FindCommand.ExecuteAsync(null);
+        var second = stopwatch.Elapsed;
+        var secondRun = page.Run!;
+
+        var store = services.GetRequiredService<IDuplicateStore>();
+        var session = page.SelectedDrive.Session;
+        var groups = await store.GetGroupsAsync(new Application.Duplicates.DuplicateGroupQuery(secondRun.Id, null, 0, 300), CancellationToken.None);
+        var lines = new List<string>();
+        foreach (var group in groups.Items)
+        {
+            var items = await store.GetItemsAsync(group.Id, CancellationToken.None);
+            lines.Add(string.Join(" | ", ByteSizeFormatter.Format(group.ReclaimableBytes, culture), group.CopyCount, group.NameCount, string.Join(" ; ", items.Select(i => session.DisplayPath(i.RelativePath)))));
+        }
+
+        await File.WriteAllLinesAsync(Path.Combine(directory, "duplicates.txt"), lines);
+
+        static string Describe(Application.Duplicates.DuplicateRun r, TimeSpan time, IFormatProvider culture) => string.Format(
+            culture,
+            "{0} in {1:F1} s: {2:N0} candidates; left out {3:N0} location, {4:N0} cloud, {5:N0} special; hashed {6:N0} files ({7:N0} MB), {8:N0} saved hashes, compared {9:N0} MB; {10:N0} groups, {11:N0} extra copies, {12:N0} MB could be freed; not compared: {13:N0} unreadable, {14:N0} in use, {15:N0} changed since scan, {16:N0} changed during, {17:N0} redirected, {18:N0} too many; {19:N0} mismatches",
+            r.State,
+            time.TotalSeconds,
+            r.Counts.CandidateFiles,
+            r.Counts.LeftOutByLocation,
+            r.Counts.LeftOutCloud,
+            r.Counts.LeftOutSpecial,
+            r.Counts.FilesHashed,
+            r.Counts.HashedBytes >> 20,
+            r.Counts.CacheHits,
+            r.Counts.ComparedBytes >> 20,
+            r.Counts.GroupCount,
+            r.Counts.DuplicateFiles,
+            r.Counts.ReclaimableBytes >> 20,
+            r.Counts.Unreadable,
+            r.Counts.InUse,
+            r.Counts.ChangedSinceScan,
+            r.Counts.ChangedDuringAnalysis,
+            r.Counts.Redirected,
+            r.Counts.NotCompared,
+            r.Counts.Mismatches);
+
+        List<string> results =
+        [
+            "duplicates, first run: " + Describe(firstRun, first, culture),
+            "duplicates, second run: " + Describe(secondRun, second, culture),
+            string.Format(culture, "duplicates: working set peak {0:N0} MB; UI idle delay median {1:F0} ms, max {2:F0} ms", process.PeakWorkingSet64 >> 20, Median(uiDelays), uiDelays.DefaultIfEmpty(0).Max()),
+        ];
+
+        if (allFolders)
+        {
+            page.IncludeSystemFolders = true;
+            stopwatch.Restart();
+            await page.FindCommand.ExecuteAsync(null);
+            var withSystem = stopwatch.Elapsed;
+            process.Refresh();
+            results.Add("duplicates, including system folders: " + Describe(page.Run!, withSystem, culture));
+            results.Add(string.Format(culture, "duplicates, including system folders: working set peak {0:N0} MB", process.PeakWorkingSet64 >> 20));
+
+            // Back to the default, so the screenshots show what a user first sees.
+            page.IncludeSystemFolders = false;
+            await page.FindCommand.ExecuteAsync(null);
+        }
+
+        return results;
     }
 
     /// <summary>Writes every residue candidate and temporary-file match to text files, for the false-positive review.</summary>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Duplicate detection: correctness and mutation races against a scripted disk, then end to end over real NTFS files and SQLite. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Source-generated P/Invoke in test helpers (hard links, sparse files). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeAll.Duplicates/FreeAll.Duplicates.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Infrastructure/FreeAll.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Scanner/FreeAll.Scanner.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,262 @@
+<UserControl x:Class="FreeAll.Desktop.Views.DuplicatesPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:duplicates="clr-namespace:FreeAll.Desktop.ViewModels.Duplicates"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=duplicates:DuplicatesViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- What to compare -->
+    <DockPanel Grid.Row="0" Margin="0,0,0,12">
+      <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" />
+      <WrapPanel>
+        <ComboBox MinWidth="280" Margin="0,0,8,8" AutomationProperties.Name="Drive" DisplayMemberPath="Label" IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}" ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}" />
+        <ComboBox MinWidth="150" Margin="0,0,8,8" AutomationProperties.Name="Smallest file to compare" DisplayMemberPath="Label" IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}" ItemsSource="{Binding MinimumSizes}" SelectedItem="{Binding SelectedMinimumSize}" />
+        <CheckBox Margin="0,0,12,8"
+                  VerticalAlignment="Center"
+                  Content="Include Windows, program and app data folders"
+                  IsChecked="{Binding IncludeSystemFolders}"
+                  IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}"
+                  ToolTip="Files there usually belong to a program that needs them where they are, even when they are identical" />
+        <Button Margin="0,0,8,8" Command="{Binding FindCommand}" Style="{StaticResource Button.Accent}">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE721;" />
+            <TextBlock Text="Find duplicates" />
+          </StackPanel>
+        </Button>
+        <Button Margin="0,0,8,8" Command="{Binding CancelCommand}" Content="Stop" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+      </WrapPanel>
+    </DockPanel>
+
+    <!-- What this page is, and what it found -->
+    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+      <Border MaxWidth="1100" HorizontalAlignment="Left" Style="{StaticResource Banner.Info}">
+        <TextBlock Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
+          <Run FontWeight="SemiBold" Text="FreeAll never picks which copy to keep." />
+          <Run Text="Identical doesn't always mean unneeded: a program can need its own copy. Nothing is removed here; add copies to the review queue to decide later." />
+        </TextBlock>
+      </Border>
+      <Grid Margin="0,8,0,0" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+        <StackPanel>
+          <ProgressBar Height="6" AutomationProperties.Name="Comparing files" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}" />
+          <TextBlock Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" Text="{Binding ProgressText}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
+      <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Body}" Text="{Binding SummaryText}" TextWrapping="Wrap" Visibility="{Binding SummaryText, Converter={StaticResource NullToVisibility}}" />
+      <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding CoverageText}" TextWrapping="Wrap" Visibility="{Binding CoverageText, Converter={StaticResource NullToVisibility}}" />
+      <DockPanel Margin="0,4,0,0" Visibility="{Binding FreshnessText, Converter={StaticResource NullToVisibility}}">
+        <TextBlock Margin="0,1,6,0" VerticalAlignment="Top" DockPanel.Dock="Left" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" />
+        <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding FreshnessText}" TextWrapping="Wrap" />
+      </DockPanel>
+      <TextBlock AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" Text="{Binding StatusMessage}" TextWrapping="Wrap" Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibility}}" />
+    </StackPanel>
+
+    <!-- No scan -->
+    <Border Grid.Row="2"
+            MaxWidth="560"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Card}"
+            Visibility="{Binding HasScan, Converter={StaticResource InverseBoolToVisibility}}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Scan a drive first" />
+        <TextBlock Margin="0,4,0,8" Style="{StaticResource Typography.Body}" Text="Duplicates are looked for among the files a scan found, one drive at a time." TextWrapping="Wrap" />
+        <Button HorizontalAlignment="Left" Command="{Binding GoToDrivesCommand}" Content="Go to Drives" />
+      </StackPanel>
+    </Border>
+
+    <!-- Scanned, but not compared yet -->
+    <Border Grid.Row="2" MaxWidth="640" HorizontalAlignment="Left" VerticalAlignment="Top" Style="{StaticResource Card}" Visibility="{Binding ShowsNotRun, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Not compared yet" />
+        <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
+          <Run Text="Files of the same size are read, hashed with SHA-256 and then compared byte for byte, so this reads a lot of data and can take a while. You can leave this page; it keeps going." />
+        </TextBlock>
+        <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding LimitsText, Mode=OneTime}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+
+    <!-- Results -->
+    <Grid Grid.Row="2" Visibility="{Binding ShowsResults, Converter={StaticResource BoolToVisibility}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" MinHeight="140" />
+        <RowDefinition Height="1.1*" MinHeight="180" />
+      </Grid.RowDefinitions>
+
+      <!-- Groups -->
+      <Border Padding="0" Style="{StaticResource Card}">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <DockPanel Margin="12,8,12,8">
+            <ComboBox MinWidth="180" AutomationProperties.Name="Category" DisplayMemberPath="Label" DockPanel.Dock="Right" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" />
+            <TextBlock VerticalAlignment="Center" Style="{StaticResource Typography.Caption}" Text="Groups, most space first" />
+          </DockPanel>
+          <TextBlock Grid.Row="1"
+                     Margin="16"
+                     Style="{StaticResource Typography.Body}"
+                     Text="No groups to show here."
+                     Visibility="{Binding Groups.Count, Converter={StaticResource InverseNullToVisibility}}" />
+          <DataGrid Grid.Row="1"
+                    AutomationProperties.Name="Groups of identical files"
+                    ItemsSource="{Binding Groups}"
+                    SelectedItem="{Binding SelectedGroup}"
+                    Visibility="{Binding Groups.Count, Converter={StaticResource NullToVisibility}}"
+                    AutoGenerateColumns="False"
+                    BorderThickness="0"
+                    CanUserReorderColumns="True"
+                    CanUserResizeColumns="True"
+                    CanUserSortColumns="False"
+                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="True"
+                    GridLinesVisibility="None"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    SelectionMode="Single"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.ScrollUnit="Item"
+                    VirtualizingPanel.VirtualizationMode="Recycling">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Width="*" MinWidth="220" Header="File">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate DataType="{x:Type duplicates:DuplicateGroupRowViewModel}">
+                    <StackPanel VerticalAlignment="Center" ToolTip="{Binding FolderPath}">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock FontSize="11" Opacity="0.75" Text="{Binding FolderPath}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Width="96" MinWidth="96" Binding="{Binding LogicalSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="Size" />
+              <DataGridTextColumn Width="120" MinWidth="120" Binding="{Binding CopiesText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Copies" />
+              <DataGridTextColumn Width="110" MinWidth="110" Binding="{Binding ReclaimableBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="Could free" />
+              <DataGridTextColumn Width="130" MinWidth="130" Binding="{Binding CategoryText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Category" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <Button Grid.Row="2" Margin="12,8" HorizontalAlignment="Left" Command="{Binding LoadMoreCommand}" Content="Show more" Visibility="{Binding HasMore, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
+      </Border>
+
+      <!-- Copies of the selected group -->
+      <Border Grid.Row="1" Margin="0,12,0,0" Padding="0" Style="{StaticResource Card}">
+        <Grid>
+          <TextBlock Margin="16" Style="{StaticResource Typography.Caption}" Text="Select a group to see its copies." TextWrapping="Wrap" Visibility="{Binding HasGroupSelection, Converter={StaticResource InverseBoolToVisibility}}" />
+          <Grid Visibility="{Binding HasGroupSelection, Converter={StaticResource BoolToVisibility}}">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Margin="12,10,12,8">
+              <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding SelectedGroup.ComparedText}" />
+              <DockPanel Margin="0,2,0,0">
+                <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" Style="{StaticResource Typography.Caption}" Text="SHA-256" />
+                <TextBox AutomationProperties.Name="SHA-256 hash" Style="{StaticResource SelectableMonospace}" Text="{Binding SelectedGroup.Hash, Mode=OneWay}" />
+              </DockPanel>
+            </StackPanel>
+            <DataGrid Grid.Row="1"
+                      AutomationProperties.Name="Copies in this group"
+                      ItemsSource="{Binding Copies}"
+                      SelectedItem="{Binding SelectedCopy}"
+                      SelectionChanged="OnCopySelectionChanged"
+                      AutoGenerateColumns="False"
+                      BorderThickness="0"
+                      CanUserReorderColumns="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="False"
+                      EnableRowVirtualization="True"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Extended"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+              <DataGrid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Command="{Binding AddToReviewCommand}" Header="Add to review queue" />
+                  <Separator />
+                  <MenuItem Command="{Binding RevealCommand}" Header="Open in File Explorer" />
+                  <MenuItem Command="{Binding ShowInExplorerCommand}" Header="Show in Storage Explorer" />
+                  <MenuItem Command="{Binding CopyPathCommand}" Header="Copy path" />
+                </ContextMenu>
+              </DataGrid.ContextMenu>
+              <DataGrid.Columns>
+                <DataGridTextColumn Width="56" MinWidth="56" Binding="{Binding CopyText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Copy" />
+                <DataGridTemplateColumn Width="*" MinWidth="240" Header="Where">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type duplicates:DuplicateCopyRowViewModel}">
+                      <StackPanel VerticalAlignment="Center" ToolTip="{Binding FullPath}">
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock FontSize="11" Opacity="0.75" Text="{Binding FolderPath}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="130" MinWidth="130" Header="Location">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type duplicates:DuplicateCopyRowViewModel}">
+                      <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <TextBlock Margin="0,0,6,0"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.Name="A program may need this copy"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource Color.Warning}"
+                                   Style="{StaticResource Typography.Icon}"
+                                   Text="&#xE7BA;"
+                                   ToolTip="A program may need this copy where it is"
+                                   Visibility="{Binding NeedsAttention, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock VerticalAlignment="Center" Text="{Binding LocationText}" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Width="96" MinWidth="96" Binding="{Binding AllocatedSize, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+                <DataGridTextColumn Width="130" MinWidth="130" Binding="{Binding Modified, StringFormat=g}" ElementStyle="{StaticResource Cell.Secondary}" Header="Modified" />
+                <DataGridTemplateColumn Width="220" MinWidth="150" Header="Notes">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type duplicates:DuplicateCopyRowViewModel}">
+                      <StackPanel VerticalAlignment="Center" ToolTip="{Binding NoteText}">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding CheckText}" TextTrimming="CharacterEllipsis" Visibility="{Binding CheckText, Converter={StaticResource NullToVisibility}}" />
+                        <TextBlock FontSize="11" Opacity="0.75" Text="{Binding NoteText}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+              </DataGrid.Columns>
+            </DataGrid>
+            <WrapPanel Grid.Row="2" Margin="12,8">
+              <Button Margin="0,0,8,0" Command="{Binding AddToReviewCommand}" Content="Add to review queue" ToolTip="Set the selected copies aside to decide later. Nothing is removed." />
+              <Button Margin="0,0,8,0" Command="{Binding RecheckCommand}" Content="Check again" ToolTip="Compare this group with what is on disk now" />
+              <Button Margin="0,0,8,0" Command="{Binding RevealCommand}" Content="Open in File Explorer" />
+              <Button Margin="0,0,8,0" Command="{Binding ShowInExplorerCommand}" Content="Show in Storage Explorer" />
+              <Button Margin="0,0,8,0" Command="{Binding CopyPathCommand}" Content="Copy path" />
+            </WrapPanel>
+          </Grid>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Duplicates couldn't be shown" />
+        <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

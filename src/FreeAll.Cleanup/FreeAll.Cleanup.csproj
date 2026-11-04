@@ -4,7 +4,17 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Source-generated P/Invoke for handle-based file operations. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FreeAll.Cleanup.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />

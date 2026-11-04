@@ -836,6 +836,341 @@ memory at completion (`TotalNewestFileTicks`, `TotalUserContentBytes`,
 schema version 4). Updates from scans of earlier versions fall back to
 a full scan once, because the scanner version changed.
 
+### TD-037 --- Duplicate scope and eligibility (2026-11-04)
+
+-   **One scan of one volume per run.** A run belongs to a single volume
+    (`DuplicateRuns.VolumeGuid`), so a group can't span volumes
+    (DEC-013). The page shows one drive at a time.
+-   **Candidates** are files of the same logical size in the scan,
+    largest size first, so the most useful groups exist if a run is
+    stopped. A file alone at its size is never opened. Empty files are
+    never compared. The smallest size is a choice on the page (100 KB to
+    1 GB; 1 MB by default).
+-   **Always left out:** the Recycle Bin and System Volume Information
+    (Windows' own data).
+-   **Left out unless the user includes them:** `\Windows`, `\Program
+    Files`, `\Program Files (x86)`, `\ProgramData`, `AppData`, and tool
+    folders at the top of a profile (`\Users\name\.vscode`, `.gradle` and
+    the like). Files there usually belong to a program that needs them
+    where they are, so an identical file there is rarely a real saving,
+    and listing it invites removing something that breaks a program. When
+    included, each copy there carries a warning. The tool-folder rule came
+    from reviewing real results: on the development PC most of the
+    largest groups were `.vscode\extensions` and `.gradle` files that had
+    no warning at all.
+-   **Contents are read only when known to be on this PC** (an allow
+    list, so an unknown reparse tag is never read): ordinary files, files
+    compressed by Windows (WOF), and cloud files that are fully present.
+    Cloud-only files are never opened for reading, because that would
+    download them (DEC-029). Links, offline files, Data Deduplication
+    files and unknown reparse points are left out.
+-   Everything left out or missed is counted and named on the page. A run
+    is Complete only when every eligible file was compared; otherwise it
+    is "Some files not compared". The text never says there are no
+    duplicates unless a run completed, and then only "among the files
+    compared".
+-   Only main contents are compared. Alternate data streams (BLK-008),
+    permissions, names and dates are not, and the page and exports say so
+    (`09-scanning-indexing.md` §10).
+-   The bound on memory is 100,000 names of one size. Above it the size
+    isn't compared and its files are counted.
+
+### TD-038 --- Reading files safely (2026-11-04)
+
+Measured on NTFS (Windows 11, 2026-11-04) before this was designed:
+
+  Question                                    Result
+  ------------------------------------------- -----------------------------------------
+  Does a reader's handle see another          Yes, at once: last-write and change times
+  handle's write while that handle is open?   move on each write, flushed or not
+  Does opening deny-write stop other          Yes: a writer gets a sharing violation
+  programs?
+  WOF (`compact /exe`) and NTFS-compressed    Read correctly through
+  files with `FILE_FLAG_OPEN_REPARSE_POINT`?  `FILE_FLAG_OPEN_REPARSE_POINT`; the
+                                              handle's allocation is the real
+                                              compressed size; WOF shows no reparse tag
+  Does the flag protect a junction in a       No, it covers only the last part;
+  parent folder?                              `GetFinalPathNameByHandle` shows the real
+                                              path
+  `ReOpenFile` from an attributes-only        Works, for reading
+  handle?
+
+-   **Two handles.** The first has only `FILE_READ_ATTRIBUTES`, which
+    never fetches a cloud file. Its live state decides whether contents
+    may be read. Contents are then read through `ReOpenFile` on that
+    handle, so the path isn't looked at twice and can't be swapped in
+    between. The state is checked again just before.
+-   **Sharing everything.** Files are opened with read, write and delete
+    sharing, so FreeAll never makes another program's save fail. A
+    deny-write open would prove a little more, but the measurement shows
+    what it costs other programs, and the metadata checks below catch
+    ordinary writes. The exception is a write through a memory-mapped
+    view, which moves no time until it is flushed; such a change can't be
+    told apart from one made just after the comparison, which cleanup's
+    own revalidation has to handle anyway.
+-   **The path must still lead to the scanned file:** the final path must
+    equal the expected one, the file must be on the volume with the
+    expected serial number, and its ID must match the scan on NTFS and
+    ReFS. A path that fails is counted as redirected and not read. If the
+    final path can't be read, the file is refused too, as unreadable.
+-   **Before and after every read,** identity, size, last-write and change
+    time must be unchanged, or the file is dropped and counted (docs/04
+    §6 step 4). The change time matters because a program can put a
+    last-write time back.
+-   A file differing from the scan isn't compared. A file with several
+    names passes if any name's listing matches, because NTFS updates
+    directory entries lazily (TD-022).
+-   No write, delete or attribute access is requested, and no privilege
+    is enabled, so ACLs apply; a guard test enforces this
+    (`ReadOnlyAnalysisTests`). Last-access times are updated by reading
+    if the volume has that enabled, which Windows doesn't do by default
+    on current systems; preventing it would need write-attribute access.
+
+### TD-039 --- Hashing, byte verification and saved hashes (2026-11-04)
+
+-   SHA-256 of the whole file through a 1 MiB buffer (DEC-014). Two size
+    groups are worked on at once by default, each start to finish by one
+    worker, which never has more than two files open. Whether one worker
+    suits hard disks better is still to be measured (BLK-009).
+-   **Only the byte comparison makes a group.** Files with the same size
+    and hash are compared with a representative, a buffer at a time;
+    every copy reads to the end. A file that differs goes on to be compared
+    with the others that differ. A file that changes during a comparison
+    is dropped, and if it was the representative, everything compared
+    with it starts again: it proves nothing about the rest.
+-   **A saved hash only decides what is worth comparing.** Bytes are
+    compared on every run, so a wrong saved hash can cost a missed
+    duplicate but never a false claim. A match that the bytes then
+    contradict removes both saved hashes.
+-   **Saved hashes** (`FileHashes`, schema version 5) are valid only for
+    the same volume GUID, volume serial (which formatting changes, while
+    a GPT volume's GUID may not), file ID, size, last-write time, change
+    time and hash version (docs/11 §5). File systems whose IDs aren't
+    trusted (TD-026) get none. Renaming a file or adding a hard link moves
+    its change time, so it is hashed again; that errs on the safe side.
+    Entries unused for 180 days are removed at the end of a run.
+-   No database transaction or read stays open while files are read
+    (docs/11 §6). Hashes and groups are written in batches. Once taken
+    from their buffer they are written even when stopping, so a stopped
+    run keeps what it confirmed and the next run reuses the hashes.
+-   Logs hold counts and states only: no paths, names or hashes.
+
+### TD-040 --- Hard links and reclaim estimate (2026-11-04)
+
+-   Names sharing a file ID on NTFS or ReFS are one file. They are never
+    compared with each other, and hard links alone never make a group.
+    A group needs two distinct files; each file shows all its names under
+    one copy number.
+-   On other file systems IDs aren't trusted (TD-026), so each name is
+    treated as its own file.
+-   **Reclaim** counts each file once, by the allocation the file system
+    reports for it now, so sparse and compressed copies count what they
+    really use. The largest copy is assumed kept, which gives the lower
+    figure.
+-   The link count comes from the file, so names outside the scan or left
+    out by location are known about. A file with other names frees
+    nothing, because its space comes back only with its last name. It
+    also stays on disk whatever happens, so in that case every other copy
+    can go.
+-   It remains an estimate: files sharing blocks on ReFS (block cloning)
+    aren't detected, and a file can change after it is compared.
+
+### TD-041 --- Duplicate results and the review queue (2026-11-04)
+
+-   Each run replaces the volume's earlier results. Results survive a
+    newer scan, because re-reading a drive is expensive, and the page
+    says they are older than the latest scan. They go when their scan's
+    summary is deleted by retention. Stopped and interrupted runs keep the
+    groups confirmed so far and say so; interrupted runs are marked at
+    start-up.
+-   **Nothing is preselected and no copy is favoured.** Names are listed
+    by path, and the data model has no keep or remove field.
+-   **"Add to review queue" refuses to queue every name in a group,**
+    counting what is already queued and everything inside queued folders.
+    FreeAll doesn't pick a copy, but the only copy of a file must not
+    drift into the queue by accident. This is a guard, not a guarantee:
+    **Phase 6 must check at removal time, against the disk, that a copy
+    outside the selection still exists and still matches**, because the
+    queue can also be filled from other pages.
+-   "Check again" reopens every name and compares the bytes again, so old
+    results can be trusted or dismissed (docs/04 §6 step 9). Phase 6's
+    revalidation can reuse it (`IDuplicateAnalysis.RecheckAsync`).
+-   Review items keep the file ID, size and modified time from the
+    comparison.
+
+### TD-042 --- Recycle Bin without silent permanent deletion (2026-11-04)
+
+Measured on Windows 11 with `IFileOperation` before this was designed
+(`FOF_ALLOWUNDO`, `FOFX_RECYCLEONDELETE`, no confirmation UI):
+
+  Case                              `PreDeleteItem` flags  Result
+  --------------------------------- ---------------------- ---------------------------------
+  File, read-only file, folder      `0x282`                Recycled; `PostDeleteItem` names
+  on C:                                                    the new item in the bin
+  No Recycle Bin (a `subst` drive), `0x202`                **File destroyed**;
+  nothing gating it                                        `PerformOperations` succeeds and
+                                                           `GetAnyOperationsAborted` is false
+  No Recycle Bin, sink refuses      `0x202`                File untouched
+  Volume GUID path                  ---                    The shell can't parse it
+
+-   So recycling is never trusted to mean recycled. Each delete is
+    watched: `PreDeleteItem` refuses unless
+    `TSF_DELETE_RECYCLE_IF_POSSIBLE` (`0x80`) is set, and success requires
+    `PostDeleteItem` to name the item created in the bin. Anything else is
+    a failure, and a failure never leads to another kind of removal.
+-   If an item is gone without that proof, it is reported as a failure
+    that says so.
+-   The final revalidation runs inside `PreDeleteItem`, the last moment
+    before the shell acts.
+-   One operation per item, on its own STA thread, so each item has its
+    own result.
+-   Availability is checked beforehand so the review can say why
+    (DEC-022): no drive letter, removable drive, or `NukeOnDelete` set for
+    the volume or globally. That check only explains; the gate decides.
+    An item too large for the bin isn't known in advance and is caught by
+    the gate.
+
+### TD-043 --- Protected paths and revalidation (2026-11-04)
+
+-   `ProtectedPathPolicy` (Core, version 1) gives each path Allowed,
+    Caution or Blocked from its segments alone, so the app and the helper
+    each apply it independently. Blocked: drive roots; Windows, boot,
+    recovery and `$…` folders; system files at the top of a drive; whole
+    programs, user, library and shared AppData folders; `WindowsApps`,
+    `Common Files`, `Windows *` under Program Files; `ProgramData\Microsoft`;
+    quarantine; FreeAll's own folders. Caution: anything else under Program
+    Files, ProgramData, AppData or a user library. A path that isn't
+    already clean is blocked, not interpreted.
+-   Revalidation runs for the review and again immediately before each
+    item: policy, then identity (file ID on NTFS and ReFS), size and
+    last-write time. A folder is walked: a link or other reparse point
+    anywhere inside blocks the whole folder, unreadable parts block it,
+    and its size must still match (hard links counted once, as the scan
+    counts them). A mismatch skips the item and asks for a new scan.
+-   Changes go through the handle whose identity was checked
+    (`SafeTarget`: `FileDispositionInfoEx`, `FileRenameInfoEx`), so the path
+    can't be swapped in between. As with reading (TD-038), the final path
+    is checked because `FILE_FLAG_OPEN_REPARSE_POINT` covers only the last
+    part of a path. The Recycle Bin can't work this way, because the shell
+    takes a path; its check is the one inside `PreDeleteItem`.
+-   A folder's contents are checked, then removed one by one through
+    their own handles, stopping at the first problem. A file added between
+    the check and its removal goes with the folder; that window is small
+    but real.
+-   Read-only is ignored when deleting, as the shell does. It is an
+    attribute, not an access list. Access lists are never changed.
+-   Duplicates: `SurvivingCopyRule` (TD-041) runs at review and again for
+    each item, with a byte comparison. An item added from Duplicate Files
+    stays unless another copy outside the selection is confirmed now.
+-   Cloud: a file in a synced folder is noted, because removing it usually
+    removes it from the cloud too. A cloud-only file can't go to quarantine,
+    which would download it.
+
+### TD-044 --- Quarantine (2026-11-04)
+
+-   **Layout:** `FreeAll Quarantine\{operation}\{number}\{original name}`,
+    at the top of the item's drive or inside a folder the user chose. The
+    folder is created with a protected access list (this user, SYSTEM,
+    Administrators). A small `restore-info.freeall.json` beside each item
+    says where it came from, so it can be understood if the database is
+    ever lost; restoring never relies on it.
+-   Paths are stored by volume GUID, so a changed drive letter loses
+    nothing.
+-   **Digest:** SHA-256 of a file's bytes. For a folder, the SHA-256 of a
+    sorted list of every path, size and file digest, so one value proves a
+    whole tree came back intact. Alternate data streams are copied but not
+    part of the digest.
+-   **Same volume:** an atomic rename through the checked handle. Identity,
+    times, attributes and access list are untouched.
+-   **Across volumes:** copy, digest the copy, check the original again,
+    and only then remove it. A bad or failed copy is discarded and the
+    original is left alone. If the original can't be removed, both are
+    kept, the item is recorded as `CopiedOriginalKept`, and the report says
+    the space wasn't freed. The access list is stored as SDDL, because a
+    copy doesn't carry it, and applied on restore.
+-   The database row is written before the move and settled after, so
+    start-up can reconcile a crash against the disk. A drive that isn't
+    connected leaves the row unsettled until it is. Nothing is deleted by
+    reconciling.
+-   Nothing is ever purged automatically. Deleting from quarantine is an
+    explicit, confirmed, audited action, and it refuses a record that
+    doesn't point into quarantine.
+-   Quarantine is never a candidate: the policy blocks any path with a
+    `FreeAll Quarantine` segment, the review queue won't take it, and
+    duplicate detection leaves it out.
+
+### TD-045 --- Restore and conflicts (2026-11-04)
+
+-   The held copy is verified against its digest first. Missing or damaged
+    content is reported and never restored as though it were good.
+-   Nothing is ever overwritten without a choice: skip, restore beside it
+    as "name (restored).ext", or replace. Replacing sends what's there to
+    the Recycle Bin first; if it can't go, nothing changes. No other way
+    of removing it is tried.
+-   A missing parent folder is recreated. If the original drive isn't
+    connected, the user chooses a folder. The destination goes through the
+    protected-path policy too.
+-   Across volumes the copy is verified before the held copy is removed.
+
+### TD-046 --- Audit (2026-11-04)
+
+-   `DeletionOperations`, `DeletionItems` and `QuarantineItems` (schema
+    version 6) are added to and settled, never removed: not by retention,
+    and not by FreeAll.
+-   Every item is written as Pending before anything is touched, moved to
+    InProgress immediately before it is touched, and given its result
+    straight after. A crash therefore shows exactly which item was in
+    progress: at start-up it becomes Interrupted ("check whether it is
+    still there"), and items not reached become Skipped.
+-   An unavailable database blocks cleanup outright
+    (`CleanupBlockedException`). A failed audit write stops the run.
+-   Results are exact. Skipped items count as problems, so a partial batch
+    is "Finished with problems", never success.
+-   Space is reported as measured only when free space rose where
+    something should have been freed. Otherwise only the estimate is
+    shown, and the note says when space will really be freed.
+
+### TD-047 --- Elevated helper (2026-11-04)
+
+-   **Scope:** started through UAC (`runas`) only when the user asks to
+    retry items that failed for lack of rights. One session, one client,
+    then it exits; it also exits when idle for 60 seconds or when the client
+    goes away. Not a service.
+-   **Commands:** `Hello`, `InspectPath`, `ExecuteApprovedOperation`
+    (`Delete`, `MoveToQuarantine`, `RestoreFromQuarantine`), `Shutdown`.
+    One target per request, with the identity it must still have: a path
+    alone is never enough. There is no generic file or shell command.
+-   **Recycle Bin isn't offered,** because an elevated process may run as
+    another account and use that account's bin.
+-   **Independent validation:** `HelperRequestValidator` and
+    `ProtectedPathPolicy` are in Core and run in the helper, trusting
+    nothing the client decided. Paths must already be exact. Quarantine
+    destinations must be `\FreeAll Quarantine\{32 hex}\{number}\{name}` at
+    the top of the target's volume. The target is rechecked on the handle
+    that changes it.
+-   **Transport:** a named pipe with a random per-session name, one
+    instance (so creating it fails if the name is taken) and an access list
+    for the client's SID only. Length-prefixed JSON, 256 KB at most,
+    unknown fields refused, version checked. An oversized, malformed or
+    mismatched message ends the session.
+-   **Both ends check each other:** the helper accepts only the expected
+    process ID running from the helper's own folder; the client accepts
+    only the process it started as the pipe's server, and connects at
+    identification level, so the helper can't act as the user.
+-   **Launch check (DEC-025):** `build.ps1` publishes the helper first and
+    embeds the SHA-256 of its executable and library in the app. A build
+    without that value refuses to start the helper, so Debug builds can't
+    use it. As DEC-025 says, this detects corruption and mismatched
+    versions, not an attacker who can already change the install folder.
+-   **File primitives are shared by compiling them in** (`Cleanup/Files`),
+    because the helper may reference only Core (TD-001).
+-   **Manifest stays `asInvoker`:** `runas` does the elevating. This gives
+    no extra rights, and it lets the real executable be tested without UAC.
+-   If the helper goes away, the current item is recorded as Interrupted
+    and the rest are left alone (fail closed).
+-   **Not included:** elevated scanning (DEC-023), which needs
+    `EnumerateDirectory`. Nothing in cleanup depends on it.
+
 ## Decision change procedure
 
 Any change must include: - Decision ID. - Current decision. - Proposed

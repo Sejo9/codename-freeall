@@ -13,9 +13,12 @@
   <Folder Name="/tests/">
     <Project Path="tests/FreeAll.Application.Tests/FreeAll.Application.Tests.csproj" />
     <Project Path="tests/FreeAll.Architecture.Tests/FreeAll.Architecture.Tests.csproj" />
+    <Project Path="tests/FreeAll.Cleanup.Tests/FreeAll.Cleanup.Tests.csproj" />
     <Project Path="tests/FreeAll.Core.Tests/FreeAll.Core.Tests.csproj" />
     <Project Path="tests/FreeAll.Desktop.Tests/FreeAll.Desktop.Tests.csproj" />
+    <Project Path="tests/FreeAll.Duplicates.Tests/FreeAll.Duplicates.Tests.csproj" />
     <Project Path="tests/FreeAll.Integration.Tests/FreeAll.Integration.Tests.csproj" />
     <Project Path="tests/FreeAll.Scanner.Tests/FreeAll.Scanner.Tests.csproj" />
+    <Project Path="tests/FreeAll.Security.Tests/FreeAll.Security.Tests.csproj" />
   </Folder>
 </Solution>

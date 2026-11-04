@@ -17,6 +17,11 @@
     <InternalsVisibleTo Include="FreeAll.Desktop.Tests" />
   </ItemGroup>
 
+  <!-- The helper's digest, passed in by build.ps1 at publish: the app refuses to start any other helper (DEC-025). -->
+  <ItemGroup Condition="'$(HelperSha256)' != ''">
+    <AssemblyMetadata Include="HelperSha256" Value="$(HelperSha256)" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

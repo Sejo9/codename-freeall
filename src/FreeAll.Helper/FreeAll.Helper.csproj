@@ -10,10 +10,24 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyName>FreeAll.Helper</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Source-generated P/Invoke for handle-based file operations. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FreeAll.Security.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../FreeAll.Core/FreeAll.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    The same audited file primitives as the app, compiled in rather than referenced: the helper depends on
+    Core only (TD-001), and these files depend on nothing else.
+  -->
+  <ItemGroup>
+    <Compile Include="../FreeAll.Cleanup/Files/*.cs" Link="Shared/%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

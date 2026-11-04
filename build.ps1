@@ -56,12 +56,27 @@ Invoke-Step 'Vulnerable dependency check' {
 }
 
 if ($Publish) {
-    foreach ($project in 'FreeAll.Desktop', 'FreeAll.Helper') {
-        Invoke-Step "Publish $project (win-x64, self-contained)" {
-            dotnet publish (Join-Path $root "src/$project/$project.csproj") `
-                --configuration $Configuration --runtime win-x64 --self-contained `
-                --output (Join-Path $artifacts 'publish/win-x64')
-        }
+    $publishDirectory = Join-Path $artifacts 'publish/win-x64'
+
+    # The helper first: the app embeds its digest and refuses to start any other (DEC-025).
+    Invoke-Step 'Publish FreeAll.Helper (win-x64, self-contained)' {
+        dotnet publish (Join-Path $root 'src/FreeAll.Helper/FreeAll.Helper.csproj') `
+            --configuration $Configuration --runtime win-x64 --self-contained `
+            --output $publishDirectory
+    }
+
+    # Must match ElevatedHelperClient.ComputeDigest: the executable, then the library.
+    $sha = [System.Security.Cryptography.IncrementalHash]::CreateHash([System.Security.Cryptography.HashAlgorithmName]::SHA256)
+    foreach ($name in 'FreeAll.Helper.exe', 'FreeAll.Helper.dll') {
+        $sha.AppendData([System.IO.File]::ReadAllBytes((Join-Path $publishDirectory $name)))
+    }
+    $helperDigest = [System.Convert]::ToHexString($sha.GetHashAndReset())
+    Write-Host "==> Helper digest: $helperDigest" -ForegroundColor Cyan
+
+    Invoke-Step 'Publish FreeAll.Desktop (win-x64, self-contained)' {
+        dotnet publish (Join-Path $root 'src/FreeAll.Desktop/FreeAll.Desktop.csproj') `
+            --configuration $Configuration --runtime win-x64 --self-contained `
+            --output $publishDirectory "-p:HelperSha256=$helperDigest"
     }
 
     # Signing is not configured yet (docs/19-blocked-features.md BLK-013).

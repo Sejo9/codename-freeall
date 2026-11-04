@@ -2,14 +2,16 @@
 
 Windows 11 storage intelligence and safe-cleanup desktop application (WPF, .NET 10, x64).
 
-**Status:** Phase 4 (application residue and temporary files). FreeAll scans local drives
+**Status:** Phase 6 (cleanup, quarantine and helper). FreeAll scans local drives
 (read-only, never following links; OneDrive and other cloud folders are listed without downloading
 files), updates them incrementally from the NTFS change journal, and stores the results locally.
 Storage Explorer (list or treemap), Large Files, File Categories, Search and Scan History (with
 comparison) read those results, and any list can be exported as CSV, JSON, HTML or PDF. Application
 Residue lists folders that may be left over from removed programs, with evidence, confidence and risk;
-Temporary Files lists known temporary and cache locations with what removing them would mean. Items can
-be set aside in a review queue; cleanup itself is not implemented yet. See
+Temporary Files lists known temporary and cache locations with what removing them would mean. Duplicate
+Files finds exact duplicates on each drive, confirmed byte for byte and aware of hard links. Items can
+be set aside in a review queue and cleaned up after a final check: to the Recycle Bin, to a restorable
+quarantine, or permanently, with every step recorded in Activity. See
 [docs/17-feature-checklist.md](docs/17-feature-checklist.md).
 
 FreeAll is free and open source under the [MIT licence](LICENSE).
@@ -42,6 +44,9 @@ tests/
   FreeAll.Application.Tests  Application services and formatting
   FreeAll.Scanner.Tests      Volume discovery and scanning of temp folder trees
   FreeAll.Integration.Tests  SQLite, access lists, logging and the scan pipeline in temp folders
+  FreeAll.Duplicates.Tests   Duplicate rules, mutation races and real NTFS files
+  FreeAll.Cleanup.Tests      Destructive operations on real files, restore and the audit trail
+  FreeAll.Security.Tests     Protected-path policy, helper protocol, attacks on the real helper
   FreeAll.Desktop.Tests      View models and theme logic
 docs/                        Product and engineering baseline
 ```

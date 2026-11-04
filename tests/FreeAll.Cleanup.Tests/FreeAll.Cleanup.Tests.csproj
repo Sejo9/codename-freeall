@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Destructive operations against real files in disposable folders, with a real audit database. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeAll.Cleanup/FreeAll.Cleanup.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Duplicates/FreeAll.Duplicates.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Infrastructure/FreeAll.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Scanner/FreeAll.Scanner.csproj" />
+  </ItemGroup>
+
+</Project>

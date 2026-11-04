@@ -92,7 +92,8 @@ internal partial class App : System.Windows.Application
 
         var database = _services.GetRequiredService<IAppDatabase>();
         await database.InitializeAsync(CancellationToken.None);
-        await RecoverInterruptedScansAsync(_services.GetRequiredService<IScanStore>(), database);
+        await RecoverInterruptedScansAsync(_services.GetRequiredService<IScanStore>(), _services.GetRequiredService<IDuplicateStore>(), database);
+        await RecoverInterruptedCleanupAsync(database);
 
         var theme = _services.GetRequiredService<ThemeService>();
         theme.Apply(await LoadThemePreferenceAsync(_services.GetRequiredService<IUserPreferences>()));
@@ -123,7 +124,7 @@ internal partial class App : System.Windows.Application
     /// Marks scans left running by a previous process as interrupted (docs/04-functional-specification.md §11).
     /// Runs before any new scan can start, so it never touches a live session.
     /// </summary>
-    private async Task RecoverInterruptedScansAsync(IScanStore store, IAppDatabase database)
+    private async Task RecoverInterruptedScansAsync(IScanStore store, IDuplicateStore duplicates, IAppDatabase database)
     {
         if (!database.Health.IsReady)
         {
@@ -132,11 +133,31 @@ internal partial class App : System.Windows.Application
 
         try
         {
+            await duplicates.RecoverInterruptedRunsAsync(CancellationToken.None);
             var recovered = await store.RecoverInterruptedSessionsAsync(CancellationToken.None);
             if (recovered > 0)
             {
                 LogScansRecovered(_logger!, recovered);
             }
+        }
+        catch (PersistenceException ex)
+        {
+            LogScanRecoveryFailed(_logger!, ex);
+        }
+    }
+
+    /// <summary>Flags what a crash left behind in the cleanup record and settles quarantine moves against the disk. Never deletes anything.</summary>
+    private async Task RecoverInterruptedCleanupAsync(IAppDatabase database)
+    {
+        if (!database.Health.IsReady)
+        {
+            return;
+        }
+
+        try
+        {
+            await _services!.GetRequiredService<Application.Cleanup.ICleanupStore>().RecoverInterruptedAsync(CancellationToken.None);
+            await _services!.GetRequiredService<FreeAll.Cleanup.Quarantine.QuarantineRestorer>().ReconcileAsync(CancellationToken.None);
         }
         catch (PersistenceException ex)
         {

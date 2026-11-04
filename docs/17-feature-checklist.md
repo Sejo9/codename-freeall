@@ -67,25 +67,25 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
 
   F-024             Temporary/cache rules     IMPLEMENTED       Rule and safety review
 
-  F-025             Duplicate candidate       NOT STARTED       Same-volume scope tests
+  F-025             Duplicate candidate       IMPLEMENTED       Same-volume scope tests
                     grouping                                    
 
-  F-026             SHA-256 streaming hash    NOT STARTED       Hash correctness tests
+  F-026             SHA-256 streaming hash    IMPLEMENTED       Hash correctness tests
 
-  F-027             Byte verification         NOT STARTED       Mismatch/collision-boundary
+  F-027             Byte verification         IMPLEMENTED       Mismatch/collision-boundary
                                                                 tests
 
   F-028             Hard-link awareness       IMPLEMENTED       File identity tests
 
-  F-029             Recycle Bin workflow      NOT STARTED       Restore and failure tests
+  F-029             Recycle Bin workflow      IMPLEMENTED       Restore and failure tests
 
-  F-030             Quarantine same-volume    NOT STARTED       Integrity/restore tests
+  F-030             Quarantine same-volume    IMPLEMENTED       Integrity/restore tests
 
-  F-031             Quarantine cross-volume   NOT STARTED       Copy-verify-remove tests
+  F-031             Quarantine cross-volume   IMPLEMENTED       Copy-verify-remove tests
 
-  F-032             Restore/conflict handling NOT STARTED       Conflict tests
+  F-032             Restore/conflict handling IMPLEMENTED       Conflict tests
 
-  F-033             Elevated helper and       NOT STARTED       Security test suite
+  F-033             Elevated helper and       IMPLEMENTED       Security test suite
                     secure IPC                                  
 
   F-034             Windows storage           NOT STARTED       Supported API validation
@@ -96,7 +96,7 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-036             Update opt-in and         NOT STARTED       Update security tests
                     signature verification                      
 
-  F-037             Audit and diagnostics     IN PROGRESS       Audit completeness tests
+  F-037             Audit and diagnostics     IMPLEMENTED       Audit completeness tests
 
   F-038             Accessibility and high    IN PROGRESS       Manual accessibility review
                     DPI                                         
@@ -321,7 +321,127 @@ Evidence: `TreemapLayoutTests` (areas proportional, no overlap),
 `ExplorerPhase3Tests.The_treemap…`, screenshots in light and dark.
 Before COMPLETED: Narrator review (BLK-006). TD-031.
 
-### F-028 --- Hard-link awareness (IMPLEMENTED for totals)
+### F-025 / F-026 / F-027 --- Duplicate detection (IMPLEMENTED)
+
+Acceptance criteria: exact duplicates within one volume only; size
+grouping, streaming SHA-256 and byte-for-byte confirmation before any
+claim; identity and change metadata checked before and after reading;
+saved hashes invalidated by every condition in `11-data-model.md` §5;
+nothing preselected; bounded memory; the page never implies more was
+compared than was. Every case in `12-quality-assurance.md` §4 has a test:
+
+  Case                           Evidence (`FreeAll.Duplicates.Tests`)
+  ------------------------------ -----------------------------------------
+  Same content, same size        `DuplicateFinderTests`, `RealFilesTests`
+  Different content, same size   `DuplicateFinderTests`, `RealFilesTests`
+  Hash collision at the          `A_simulated_hash_collision…`,
+  verification boundary          `Colliding_files_split…`
+  Hard links                     `DuplicateFinderTests`, `ReclaimEstimatorTests`,
+                                 `RealFilesTests` (CreateHardLink, including a
+                                 link outside the scan)
+  Sparse and compressed files    `RealFilesTests.Compressed_and_sparse…`
+                                 (NTFS, WOF and sparse, on real files)
+  File mutation during hashing   `MutationRaceTests`; on real NTFS with the
+                                 writer's handle still open,
+                                 `A_real_write_during_hashing…`
+  Mutation during comparison     `MutationRaceTests`,
+                                 `A_real_write_during_the_comparison…`
+  Volume boundary                `Identical_files_on_two_real_volumes…`,
+                                 `A_folder_swapped_for_a_junction_onto_another…`
+                                 (C: and E:), `A_path_that_now_leads_onto…`
+  Cache invalidation             `HashCacheInvalidationTests`, `RealFilesTests`
+  Byte verification mismatch     `A_stale_saved_hash_costs_a_comparison…`
+
+Also: `An_analysis_changes_nothing_on_disk`,
+`Reading_never_blocks_a_program…`, `ReadOnlyAnalysisTests` (no write,
+delete or privilege call in the project), `DuplicatesViewModelTests`,
+`SqliteDuplicateStoreTests`, and screenshots in light and dark. A real
+OneDrive placeholder was checked by hand: the handle shows the recall
+attribute and the file stays cloud-only after a metadata open.
+
+On the development PC's C: (969,365 files): see
+`18-development-log.md`. TD-037 to TD-041.
+
+Before COMPLETED:
+
+-   a security review of file identity and revalidation by someone other
+    than the implementing agent (`15-ai-agent-rules.md` §7; the review so
+    far was the agent's own, and it found and fixed three defects);
+-   the symbolic-link test on a machine with Developer Mode or elevation
+    (skipped on the development PC);
+-   a run on FAT or exFAT media, which the development PC doesn't have:
+    the rules that apply there are tested only against a simulated disk;
+-   a registered cloud sync root in an automated test, and a hydrated
+    cloud file with a duplicate, which hasn't occurred on this PC;
+-   benchmarks on a hard disk and USB media (BLK-009), including whether
+    one worker suits them better than two;
+-   Narrator review of the page (BLK-006).
+
+### F-029 to F-033, F-037 --- Cleanup, quarantine, restore, helper and audit (IMPLEMENTED)
+
+Acceptance criteria: the sequence in `10-cleanup-quarantine.md` §4; no
+silent fallback to permanent deletion; revalidation immediately before
+each item; protected-path policy applied in the app and in the helper;
+quarantine verified, restorable and never purged automatically; restore
+never overwrites without a choice; every operation audited per item, with
+partial batches reported as such; the failure rules in §9.
+
+  Requirement                         Evidence
+  ----------------------------------- ----------------------------------------
+  No silent permanent deletion        `RecycleBinTests.Where_windows_would_delete…`
+                                      (a real location with no Recycle Bin),
+                                      `A_recycle_bin_failure_never_leads…`,
+                                      `Removal_without_proof…`
+  Recycle Bin                         Real files and folders, with the path
+                                      Windows gave as proof
+  Revalidation                        `DestructiveSafetyTests`: changed file,
+                                      replaced file with the same size and time,
+                                      folder swapped for a junction, grown
+                                      folder, last-moment change
+  Links are never followed            Junction inside a folder, junction as a
+                                      target, what a junction points at survives
+  Protected paths                     `ProtectedPathPolicyTests`,
+                                      `Protected_items_never_reach_any_mode…`
+  Last copy of a duplicate            `SurvivingCopyTests`: real scan, real
+                                      comparison, real removal
+  Same-volume quarantine              `Same_drive_quarantine_works_at_the_top…`
+                                      (a real drive root), identity and times kept
+  Cross-volume quarantine             C: and E:: verified copy, bad copy, failed
+                                      copy, original written during the copy,
+                                      original that can't be removed
+  Restore and conflicts               Skip, alternate name, replace, recycle
+                                      refused, missing folder, chosen folder,
+                                      missing drive, damaged and missing content
+  Audit                               In progress before touching, crash
+                                      recovery, partial batches, database down
+  Helper                              `HelperProcessTests`: the real executable,
+                                      launched through the shell as in production
+                                      but without `runas`. Wrong digest, wrong
+                                      client, taken pipe name, pipe access list,
+                                      oversized, malformed and mismatched
+                                      messages, identity mismatch, killed helper
+  Pages                               `CleanupViewModelTests`, screenshots in
+                                      light and dark
+
+The Debug capture runs one real quarantine, only on files it creates in
+its own folder, so Activity can be reviewed. TD-042 to TD-047.
+
+Before COMPLETED:
+
+-   the manual steps in `12-quality-assurance.md` §3.2, which need a person
+    at a UAC prompt: a real elevated run has never happened (BLK-019);
+-   a security review by someone other than the implementing agent
+    (`15-ai-agent-rules.md` §7, BLK-020);
+-   the Recycle Bin on a real removable drive and with an item too large
+    for the bin; only a `subst` drive was available, and changing the
+    bin's settings on this PC wasn't appropriate;
+-   real cloud-sync behaviour when a synced file is removed;
+-   Narrator review of both pages (BLK-006).
+
+Elevated scanning (DEC-023) is not part of this: see TD-047. F-037 covers
+the audit; support bundles aren't built.
+
+### F-028 --- Hard-link awareness (IMPLEMENTED)
 
 Acceptance criteria: a file with several names counts once in every
 folder total, session total and category total; each name's link count
@@ -329,7 +449,7 @@ is stored and shown. Evidence: `HardLinkTotalsTests`,
 `SqliteIndexFeatureTests.Hard_linked_files…`,
 `IncrementalScanTests.Hard_links_found_by_a_real_scan…` (CreateHardLink
 on NTFS); on C:, 94,057 extra names and 15.9 GB that were counted twice
-before. Duplicate detection (Phase 5) will use the same identities.
+before. Duplicate detection uses the same identities (F-025 to F-027).
 TD-026.
 
 ### F-035 --- CSV/JSON/HTML/PDF export (IMPLEMENTED)

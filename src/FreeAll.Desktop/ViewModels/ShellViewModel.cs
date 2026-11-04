@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using FreeAll.Application.Abstractions;
 using FreeAll.Core.Classification;
 using FreeAll.Desktop.Services;
+using FreeAll.Desktop.ViewModels.Cleanup;
 using FreeAll.Desktop.ViewModels.Index;
 using Microsoft.Extensions.Logging;
 
@@ -17,6 +18,7 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
 
     private readonly Func<SearchViewModel> _search;
     private readonly Func<ReviewQueueViewModel> _review;
+    private readonly Func<CleanupReviewViewModel> _cleanup;
 
     public ShellViewModel(
         IReadOnlyList<NavigationItem> navigationItems,
@@ -24,7 +26,8 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
         ScanActivityViewModel scanActivity,
         ILogger<ShellViewModel> logger,
         Func<SearchViewModel>? search = null,
-        Func<ReviewQueueViewModel>? review = null)
+        Func<ReviewQueueViewModel>? review = null,
+        Func<CleanupReviewViewModel>? cleanup = null)
     {
         ArgumentOutOfRangeException.ThrowIfZero(navigationItems.Count);
 
@@ -34,6 +37,7 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
         _logger = logger;
         _search = search ?? (() => throw new InvalidOperationException("Search is not available."));
         _review = review ?? (() => throw new InvalidOperationException("The review queue is not available."));
+        _cleanup = cleanup ?? (() => throw new InvalidOperationException("Cleanup is not available."));
         IsNavigationExpanded = true;
         SelectedItem = navigationItems[0];
     }
@@ -103,6 +107,13 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
     }
 
     public void ShowReviewQueue() => Show(_review());
+
+    public Task ShowCleanupAsync(IReadOnlyList<ReviewItem> items)
+    {
+        var page = _cleanup();
+        Show(page);
+        return page.ReviewAsync(items);
+    }
 
     [RelayCommand]
     private Task SearchAsync() => string.IsNullOrWhiteSpace(SearchText) ? Task.CompletedTask : ShowSearchAsync(SearchText.Trim());

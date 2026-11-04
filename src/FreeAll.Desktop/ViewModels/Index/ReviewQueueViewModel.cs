@@ -16,7 +16,7 @@ namespace FreeAll.Desktop.ViewModels.Index;
 /// <summary>
 /// The review queue (docs/07-ui-ux-design.md §5 "Storage Explorer: multi-select and review queue").
 /// Items are set aside here for a later decision. Nothing on this page changes files; removing an item
-/// only takes it off the list. Moving items to the Recycle Bin or quarantine arrives with Phase 6.
+/// only takes it off the list. "Clean up" opens the review, which checks every item again before anything happens.
 /// </summary>
 internal sealed partial class ReviewQueueViewModel : PageViewModel
 {
@@ -27,6 +27,7 @@ internal sealed partial class ReviewQueueViewModel : PageViewModel
     private readonly IConfirmation _confirmation;
     private readonly IUiDispatcher _ui;
     private readonly ILogger<ReviewQueueViewModel> _logger;
+    private readonly INavigator? _navigator;
     private IReadOnlyList<ReviewRowViewModel> _selection = [];
     private Dictionary<VolumeId, ScanSessionSummary> _mounts = [];
 
@@ -37,7 +38,8 @@ internal sealed partial class ReviewQueueViewModel : PageViewModel
         ExportActions export,
         IConfirmation confirmation,
         IUiDispatcher ui,
-        ILogger<ReviewQueueViewModel> logger)
+        ILogger<ReviewQueueViewModel> logger,
+        INavigator? navigator = null)
     {
         _queue = queue;
         _index = index;
@@ -46,13 +48,14 @@ internal sealed partial class ReviewQueueViewModel : PageViewModel
         _confirmation = confirmation;
         _ui = ui;
         _logger = logger;
+        _navigator = navigator;
         CountText = "Review";
         queue.Changed += (_, _) => _ui.Post(Rebuild);
     }
 
     public override string Title => "Review queue";
 
-    public override string? Subtitle => "Items you set aside to decide about later. Nothing here has been changed or removed.";
+    public override string? Subtitle => "Items you set aside to decide about. Nothing here has been changed or removed.";
 
     public ObservableCollection<ReviewRowViewModel> Items { get; } = [];
 
@@ -126,6 +129,14 @@ internal sealed partial class ReviewQueueViewModel : PageViewModel
         }
     }
 
+    /// <summary>Opens the cleanup review for the selection, or for everything when nothing is selected. Nothing changes until it is confirmed there.</summary>
+    [RelayCommand]
+    private Task CleanUpAsync()
+    {
+        var items = _selection.Count > 0 ? _selection.Select(r => r.Item).ToList() : Items.Select(r => r.Item).ToList();
+        return _navigator is null || items.Count == 0 ? Task.CompletedTask : _navigator.ShowCleanupAsync(items);
+    }
+
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Reveal() => _actions.Reveal(_selection[0].DisplayPath);
 
@@ -179,7 +190,7 @@ internal sealed partial class ReviewQueueViewModel : PageViewModel
             ? null
             : string.Format(
                 culture,
-                "{0:N0} {1}, {2} ({3} on disk) as scanned{4}. Hard links and changes since the scan aren't taken into account; cleanup will check every item again first.",
+                "{0:N0} {1}, {2} ({3} on disk) as scanned{4}. Hard links and changes since the scan aren't taken into account here; cleanup checks every item again first.",
                 totals.ItemCount,
                 totals.ItemCount == 1 ? "item" : "items",
                 ByteSizeFormatter.Format(totals.LogicalBytes, culture),

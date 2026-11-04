@@ -34,6 +34,7 @@ justified by measured overhead.
   `ApplicationPaths`     Known application path relationships
   `ResidueCandidates`    Candidate residue paths and confidence
   `ResidueEvidence`      Evidence supporting residue association
+  `DuplicateRuns`        One analysis of one scan of one volume (TD-041)
   `DuplicateGroups`      Exact duplicate groups within one volume
   `DuplicateItems`       File membership and hard-link identity
   `DeletionOperations`   Operation-level cleanup audit

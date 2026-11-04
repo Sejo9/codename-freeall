@@ -3,6 +3,8 @@
                     xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
                     xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
              xmlns:residue="clr-namespace:FreeAll.Desktop.ViewModels.Residue"
+             xmlns:duplicates="clr-namespace:FreeAll.Desktop.ViewModels.Duplicates"
+             xmlns:cleanup="clr-namespace:FreeAll.Desktop.ViewModels.Cleanup"
                     xmlns:views="clr-namespace:FreeAll.Desktop.Views">
 
   <!-- Maps each page view model to its view. The shell's ContentControl picks the template by type. -->
@@ -49,6 +51,18 @@
 
   <DataTemplate DataType="{x:Type residue:TemporaryFilesViewModel}">
     <views:TemporaryFilesPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type duplicates:DuplicatesViewModel}">
+    <views:DuplicatesPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type cleanup:CleanupReviewViewModel}">
+    <views:CleanupReviewPage />
+  </DataTemplate>
+
+  <DataTemplate DataType="{x:Type cleanup:ActivityViewModel}">
+    <views:ActivityPage />
   </DataTemplate>
 
 </ResourceDictionary>

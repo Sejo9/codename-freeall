@@ -18,8 +18,9 @@ and locked by `packages.lock.json`.
   Microsoft.Extensions.DependencyInjection  10.0.14   MIT          Desktop            Composition
                                                                                       root
 
-  Microsoft.Extensions.Logging.Abstractions 10.0.14   MIT          Scanner,           `ILogger`
-                                                                   Infrastructure,    abstraction
+  Microsoft.Extensions.Logging.Abstractions 10.0.14   MIT          Scanner, Cleanup,  `ILogger`
+                                                                   Duplicates,        abstraction
+                                                                   Infrastructure,    
                                                                    Desktop            
 
   Microsoft.Data.Sqlite                     10.0.14   MIT          Infrastructure     SQLite

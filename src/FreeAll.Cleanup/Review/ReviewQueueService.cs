@@ -1,5 +1,6 @@
 using FreeAll.Application.Abstractions;
 using FreeAll.Application.Scanning;
+using FreeAll.Core.Cleanup;
 using FreeAll.Core.Review;
 using FreeAll.Core.Volumes;
 
@@ -17,7 +18,7 @@ public sealed record ReviewTotals(int ItemCount, int NestedCount, long LogicalBy
 /// <summary>
 /// The review queue (docs/04-functional-specification.md §4, docs/07-ui-ux-design.md §5): items set aside
 /// from Storage Explorer, Large Files, Search or the treemap. Adding an item never changes anything on
-/// disk. Cleanup, with its revalidation and confirmation, arrives in Phase 6 and will start from here.
+/// disk. Cleanup, with its revalidation and confirmation, starts from here.
 /// </summary>
 public sealed class ReviewQueueService
 {
@@ -54,7 +55,7 @@ public sealed class ReviewQueueService
 
         var now = _time.GetUtcNow().UtcDateTime;
         var items = entries
-            .Where(x => !VolumePath.IsRoot(x.Entry.RelativePath))
+            .Where(x => !VolumePath.IsRoot(x.Entry.RelativePath) && !ProtectedPathPolicy.IsQuarantinePath(x.Entry.RelativePath))
             .Select(x => new ReviewItem(
                 0,
                 x.Session.Volume,
@@ -103,7 +104,7 @@ public sealed class ReviewQueueService
 
     /// <summary>
     /// Totals with items inside a queued folder counted once, as part of that folder. Hard links and
-    /// later changes on disk are not accounted for; Phase 6 revalidates before anything is removed.
+    /// later changes on disk are not accounted for; cleanup revalidates before anything is removed.
     /// </summary>
     public static ReviewTotals Summarize(IReadOnlyList<ReviewItem> items)
     {

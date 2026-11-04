@@ -30,13 +30,13 @@ public sealed partial class SqliteScanStore
         d.CreatedTicks, d.ModifiedTicks, d.Attributes, d.ReparseTag, d.FileId, d.State, d.IncompleteCount, d.TotalNewestFileTicks, d.TotalUserContentBytes
         """;
 
-    private const string FileColumns = """
+    internal const string FileColumns = """
         f.DirKey, f.Id, f.Name, f.Extension, f.LogicalSize, f.AllocatedSize, f.CreatedTicks, f.ModifiedTicks,
         f.AccessedTicks, f.Attributes, f.ReparseTag, f.FileId, f.Category, f.CategoryReason, f.LinkCount
         """;
 
     /// <summary>Number of columns in <see cref="FileColumns"/>; a following column is at this ordinal.</summary>
-    private const int FileColumnCount = 15;
+    internal const int FileColumnCount = 15;
 
     private const int ExportChunk = 5_000;
 
@@ -658,7 +658,7 @@ public sealed partial class SqliteScanStore
         UserContentBytes: reader.GetInt64(15));
 
     /// <summary>Maps <see cref="FileColumns"/> starting at ordinal 0.</summary>
-    private static IndexEntry ReadFile(SqliteDataReader reader, long sessionId, string folderPath)
+    internal static IndexEntry ReadFile(SqliteDataReader reader, long sessionId, string folderPath)
     {
         var name = reader.GetString(2);
         return new IndexEntry(
@@ -706,7 +706,7 @@ public sealed partial class SqliteScanStore
     private static DateTime? Time(SqliteDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : DateTime.FromFileTimeUtc(reader.GetInt64(ordinal));
 
-    private static UInt128? Identity(SqliteDataReader reader, int ordinal)
+    internal static UInt128? Identity(SqliteDataReader reader, int ordinal)
     {
         if (reader.IsDBNull(ordinal))
         {

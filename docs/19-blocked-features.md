@@ -8,6 +8,9 @@ No product question is open. BLK-017 was resolved on 2026-11-03
 Phase 4's exit criterion needs a person: the product owner's sign-off on
 the residue false-positive review (BLK-018, below).
 
+Phase 6 needs people too: a real elevated run of the helper (BLK-019) and
+a security review by someone who didn't write the code (BLK-020).
+
 Two manual checks need hands on a physical PC and can't be done by the
 development agent: changing a drive letter (needs administrator rights)
 and unplugging a USB drive during a scan. The procedure is in
@@ -56,6 +59,49 @@ F-007 in `17-feature-checklist.md`).
                  false-positive could cost data       development-PC review; a    
                  sign-off                             review on another PC        
   ----------------------------------------------------------------------------------------------
+
+## Validation evidence (Phase 6, 2026-11-04)
+
+### BLK-019 --- Elevated helper has never run elevated: OPEN
+
+The development agent has no administrator rights and can't answer a UAC
+prompt. The real helper executable is tested through the same shell launch
+as production, but without the `runas` verb, so everything except
+elevation itself is covered. Needed: the manual steps in
+`12-quality-assurance.md` §3.2 A and B on a published build. Until then
+F-033 stays IMPLEMENTED.
+
+### BLK-020 --- Independent security review of cleanup: OPEN
+
+`15-ai-agent-rules.md` §7 requires focused review of deletion, quarantine,
+helper IPC, path validation and code that runs elevated. The
+`security-review` tool needs a Git remote, which this repository doesn't
+have yet. The review so far is the implementing agent's own, and it found
+and fixed defects (`18-development-log.md`). This is the riskiest code in
+the product, so it deserves a reviewer who didn't write it, before any
+release.
+
+### BLK-007 --- Windows cleanup APIs: OPEN (unchanged)
+
+Phase 7. Nothing in Phase 6 touches Windows-managed locations: the policy
+blocks them.
+
+## Validation evidence (Phase 5, 2026-11-04)
+
+### BLK-009 --- Performance targets: IN PROGRESS (third baseline)
+
+Duplicate timings are in `18-development-log.md`: C:, NVMe, one machine,
+Debug build. Default scope 9.9 s (4.0 s with saved hashes); with system
+folders 156 s. Hard disks and USB media are still unmeasured, including
+whether one worker suits them better than the default two.
+
+### Focused review of file identity and revalidation
+
+`15-ai-agent-rules.md` §7 requires it. The `security-review` tool needs a
+Git remote, which this repository doesn't have yet, so the review so far
+is the implementing agent's own; it found three defects, all fixed
+(`18-development-log.md`). An independent review is needed before F-025
+to F-027 become COMPLETED.
 
 ## Validation evidence (Phase 4, 2026-11-03)
 

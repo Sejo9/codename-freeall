@@ -9,4 +9,5 @@ public enum ReviewOrigin
     Treemap = 3,
     ApplicationResidue = 4,
     TemporaryFiles = 5,
+    Duplicates = 6,
 }

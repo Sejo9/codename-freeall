@@ -77,6 +77,53 @@ before a release. Record the result and date in
 2.  Select **Update**. Expected: a full scan runs, and its note says the
     change journal was reset so its history is gone.
 
+### 3.2 Manual cleanup and helper tests (F-029, F-033)
+
+These need a person: a UAC prompt can't be answered by automation. Use
+disposable files only. Run them on a published build, because other
+builds refuse to start the helper. Record the result and date in
+`17-feature-checklist.md`.
+
+**A. Administrator approval**
+
+1.  As an administrator, create `C:\ProgramData\FreeAllTest\old.bin`, then
+    remove your own user's write access to it.
+2.  Scan C:, add the file to the review queue from Storage Explorer, and
+    choose **Clean up**, then **Quarantine on the same drive**.
+3.  Expected: the item fails with a plain permission message, and
+    **Try again with administrator approval** appears.
+4.  Choose it and decline the UAC prompt. Expected: "Administrator
+    approval was declined", and the file is untouched.
+5.  Choose it again and approve. Expected: the file is in
+    `C:\FreeAll Quarantine`, Activity shows the helper took part, and
+    `FreeAll.Helper.exe` is no longer running a minute later.
+6.  Repeat with **Permanently delete**.
+
+**B. Helper integrity**
+
+1.  In a copy of the published folder, change one byte of
+    `FreeAll.Helper.dll`.
+2.  Repeat step A.4 from that copy. Expected: no UAC prompt, and a message
+    that the helper isn't the one this version shipped with.
+
+**C. Recycle Bin limits**
+
+1.  Plug in a USB drive. Scan it, queue a file and choose **Clean up**.
+    Expected: nothing is preselected and the Recycle Bin is shown as
+    unavailable.
+2.  On a test PC, set a drive's Recycle Bin to its smallest size and queue a
+    larger file. Choose **Move to Recycle Bin**. Expected: the item fails,
+    saying nothing was deleted, and the file is still there.
+3.  In the Recycle Bin's properties, choose "Don't move files to the
+    Recycle Bin". Expected: it is shown as unavailable for that drive.
+
+**D. Interrupted cleanup**
+
+1.  Quarantine a large folder to another drive, and end `FreeAll.exe` from
+    Task Manager during the copy.
+2.  Start FreeAll. Expected: Activity shows the operation as Interrupted
+    and the item as needing a check; the original is intact.
+
 ## 4. Duplicate tests
 
 -   Same content, same size.

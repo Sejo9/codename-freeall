@@ -1,3 +1,4 @@
+using FreeAll.Application.Abstractions;
 using FreeAll.Core.Classification;
 
 namespace FreeAll.Desktop.Services;
@@ -18,4 +19,7 @@ internal interface INavigator
 
     /// <summary>Opens the review queue.</summary>
     void ShowReviewQueue();
+
+    /// <summary>Opens the cleanup review for these items. Nothing happens to them until the user confirms there.</summary>
+    Task ShowCleanupAsync(IReadOnlyList<ReviewItem> items);
 }

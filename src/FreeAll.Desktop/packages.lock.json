@@ -91,7 +91,8 @@
         "type": "Project",
         "dependencies": {
           "FreeAll.Application": "[0.0.1, )",
-          "FreeAll.Core": "[0.0.1, )"
+          "FreeAll.Core": "[0.0.1, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "freeall.core": {
@@ -101,7 +102,8 @@
         "type": "Project",
         "dependencies": {
           "FreeAll.Application": "[0.0.1, )",
-          "FreeAll.Core": "[0.0.1, )"
+          "FreeAll.Core": "[0.0.1, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "freeall.infrastructure": {

@@ -440,8 +440,9 @@ public sealed partial class ScanCoordinator : IScanCoordinator, IDisposable
             catch (PersistenceException ex)
             {
                 storeFailure = ex;
-                channel.Writer.TryComplete(ex);
+                // Cancel first: a scanner that finds the channel closed must also see why it should stop.
                 await scanCancellation.CancelAsync().ConfigureAwait(false);
+                channel.Writer.TryComplete(ex);
             }
         }, CancellationToken.None);
 

@@ -341,6 +341,14 @@ internal sealed class FakeNavigator : INavigator
     }
 
     public void ShowReviewQueue() => Visited.Add("review");
+
+    public List<IReadOnlyList<ReviewItem>> Cleanups { get; } = [];
+
+    public Task ShowCleanupAsync(IReadOnlyList<ReviewItem> items)
+    {
+        Cleanups.Add(items);
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakeSystemDrive(ScanSessionSummary? session, string? profile) : ISystemDrive

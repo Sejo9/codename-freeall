@@ -1,0 +1,186 @@
+<UserControl x:Class="FreeAll.Desktop.Views.CleanupReviewPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:cleanup="clr-namespace:FreeAll.Desktop.ViewModels.Cleanup"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=cleanup:CleanupReviewViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0" MaxWidth="900" Margin="0,0,0,12" HorizontalAlignment="Left" Style="{StaticResource Banner.Warning}" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibility}}">
+      <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+    </Border>
+
+    <!-- Checking -->
+    <StackPanel Grid.Row="1" Visibility="{Binding IsChecking, Converter={StaticResource BoolToVisibility}}">
+      <ProgressBar AutomationProperties.Name="Checking the selected items" IsIndeterminate="True" />
+      <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Body}" Text="Checking that each item is still the one you reviewed…" />
+    </StackPanel>
+
+    <!-- Review -->
+    <Grid Grid.Row="1" Visibility="{Binding IsReview, Converter={StaticResource BoolToVisibility}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="360" />
+      </Grid.ColumnDefinitions>
+      <Border Padding="0" Style="{StaticResource Card}">
+        <DataGrid AutomationProperties.Name="Items to clean up"
+                  ItemsSource="{Binding Items}"
+                  AutoGenerateColumns="False"
+                  BorderThickness="0"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="False"
+                  EnableRowVirtualization="True"
+                  GridLinesVisibility="None"
+                  HeadersVisibility="Column"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Width="*" MinWidth="240" Header="Item">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type cleanup:TargetRowViewModel}">
+                  <StackPanel VerticalAlignment="Center" ToolTip="{Binding Path}">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock FontSize="11" Opacity="0.75" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Width="92" MinWidth="92" Binding="{Binding AllocatedBytes, Converter={StaticResource ByteSize}}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+            <DataGridTemplateColumn Width="150" MinWidth="130" Header="Checked">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type cleanup:TargetRowViewModel}">
+                  <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" AutomationProperties.Name="Needs attention" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" Visibility="{Binding NeedsAttention, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock VerticalAlignment="Center" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Width="1.1*" MinWidth="220" Header="What to know">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type cleanup:TargetRowViewModel}">
+                  <StackPanel VerticalAlignment="Center" ToolTip="{Binding NotesText}">
+                    <TextBlock Text="{Binding RiskText}" />
+                    <TextBlock FontSize="11" Opacity="0.75" Text="{Binding NotesText}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Width="120" MinWidth="110" Binding="{Binding OriginText}" ElementStyle="{StaticResource Cell.Secondary}" Header="From" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Border>
+
+      <!-- Destination and confirmation -->
+      <Border Grid.Column="1" Margin="12,0,0,0" Style="{StaticResource Card}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock AutomationProperties.HeadingLevel="Level3" Style="{StaticResource Typography.Title}" Text="Where should they go?" />
+            <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding DestinationNotice}" TextWrapping="Wrap" Visibility="{Binding DestinationNotice, Converter={StaticResource NullToVisibility}}" />
+            <ListBox Margin="0,8,0,0" AutomationProperties.Name="Destination" BorderThickness="0" Background="Transparent" ItemsSource="{Binding Destinations}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectedItem="{Binding SelectedDestination}">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type cleanup:DestinationOption}">
+                  <StackPanel Margin="0,4">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextWrapping="Wrap" />
+                    <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Description}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <StackPanel Margin="0,8,0,0" Visibility="{Binding NeedsFolder, Converter={StaticResource BoolToVisibility}}">
+              <Button HorizontalAlignment="Left" Command="{Binding ChooseFolderCommand}" Content="Choose folder…" />
+              <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding CentralFolder}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Margin="0,8,0,0" Style="{StaticResource Banner.Warning}" Visibility="{Binding IsPermanent, Converter={StaticResource BoolToVisibility}}">
+              <CheckBox IsChecked="{Binding PermanentAcknowledged}">
+                <TextBlock Foreground="{DynamicResource Color.TextPrimary}" Text="I understand these items can't be recovered." TextWrapping="Wrap" />
+              </CheckBox>
+            </Border>
+
+            <TextBlock Margin="0,12,0,0" Style="{StaticResource Typography.Body}" Text="{Binding SummaryText}" TextWrapping="Wrap" />
+            <WrapPanel Margin="0,12,0,0">
+              <Button Margin="0,0,8,8" Command="{Binding ExecuteCommand}" Content="{Binding ActionText}">
+                <Button.Style>
+                  <Style TargetType="Button" BasedOn="{StaticResource Button.Accent}">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsPermanent}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Color.Danger}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource Color.Danger}" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Button.Style>
+              </Button>
+              <Button Margin="0,0,8,8" Command="{Binding BackToQueueCommand}" Content="Back to the review queue" />
+            </WrapPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <!-- Running -->
+    <StackPanel Grid.Row="1" MaxWidth="900" HorizontalAlignment="Stretch" Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+      <ProgressBar Height="6" AutomationProperties.Name="Cleaning up" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}" />
+      <TextBlock Margin="0,8,0,8" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Body}" Text="{Binding ProgressText}" TextTrimming="CharacterEllipsis" />
+      <Button HorizontalAlignment="Left" Command="{Binding StopCommand}" Content="Stop" />
+    </StackPanel>
+
+    <!-- Results -->
+    <Grid Grid.Row="1" Visibility="{Binding IsResults, Converter={StaticResource BoolToVisibility}}">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <TextBlock Margin="0,0,0,8" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Body}" Text="{Binding ResultText}" TextWrapping="Wrap" />
+      <Border Grid.Row="1" Padding="0" Style="{StaticResource Card}">
+        <DataGrid AutomationProperties.Name="What happened to each item"
+                  ItemsSource="{Binding Results}"
+                  AutoGenerateColumns="False"
+                  BorderThickness="0"
+                  CanUserReorderColumns="True"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="False"
+                  EnableRowVirtualization="True"
+                  GridLinesVisibility="None"
+                  HeadersVisibility="Column"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Width="150" MinWidth="130" Header="Result">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate DataType="{x:Type cleanup:ResultRowViewModel}">
+                  <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" AutomationProperties.Name="Not done" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" Visibility="{Binding Failed, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock VerticalAlignment="Center" Text="{Binding StateText}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Width="*" MinWidth="240" Binding="{Binding Path}" ElementStyle="{StaticResource Cell.Secondary}" Header="Item" />
+            <DataGridTextColumn Width="1.2*" MinWidth="240" Binding="{Binding Message}" ElementStyle="{StaticResource Cell.Secondary}" Header="What happened" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Border>
+      <WrapPanel Grid.Row="2" Margin="0,12,0,0">
+        <Button Margin="0,0,8,0" Command="{Binding BackToQueueCommand}" Content="Back to the review queue" />
+        <Button Margin="0,0,8,0" Command="{Binding OpenActivityCommand}" Content="Open Activity" />
+        <Button Margin="0,0,8,0" Command="{Binding RetryAsAdministratorCommand}" Content="Try again with administrator approval" Visibility="{Binding CanRetryAsAdministrator, Converter={StaticResource BoolToVisibility}}" />
+      </WrapPanel>
+    </Grid>
+  </Grid>
+</UserControl>

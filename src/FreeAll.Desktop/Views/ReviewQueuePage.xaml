@@ -19,13 +19,13 @@
       <DockPanel>
         <TextBlock Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Info}" Style="{StaticResource Typography.Icon}" Text="&#xE946;" />
         <TextBlock Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
-          Nothing here has been moved or deleted. Add items from Storage Explorer, Large Files or Search to decide about them later.
-          Moving items to the Recycle Bin or to quarantine will start from this list in a later version, after checking that each item is still the one you reviewed.
+          Nothing here has been moved or deleted. Choose Clean up to review what would happen: every item is checked again first, you choose where it goes, and nothing changes until you confirm.
         </TextBlock>
       </DockPanel>
     </Border>
 
     <DockPanel Grid.Row="1" Margin="0,0,0,8">
+      <Button Margin="8,0,0,0" Command="{Binding CleanUpCommand}" Content="Clean up…" DockPanel.Dock="Right" Style="{StaticResource Button.Accent}" ToolTip="Review the selected items, or all of them, before anything changes" />
       <Button Margin="8,0,0,0" Command="{Binding ClearCommand}" Content="Clear list" DockPanel.Dock="Right" ToolTip="Take every item off the list. Files are not changed." />
       <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" />
       <Button Margin="8,0,0,0" Command="{Binding RemoveCommand}" Content="Remove from list" DockPanel.Dock="Right" ToolTip="Take the selected items off the list. Files are not changed." />

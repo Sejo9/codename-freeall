@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The protected-path policy, the helper protocol, and attacks on the real helper process and its pipe. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeAll.Cleanup/FreeAll.Cleanup.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Helper/FreeAll.Helper.csproj" />
+  </ItemGroup>
+
+</Project>

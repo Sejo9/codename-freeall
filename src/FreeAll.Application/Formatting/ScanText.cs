@@ -33,6 +33,9 @@ public static class ScanText
         ReviewOrigin.LargeFiles => "Large Files",
         ReviewOrigin.Search => "Search",
         ReviewOrigin.Treemap => "Treemap",
+        ReviewOrigin.ApplicationResidue => "Application Residue",
+        ReviewOrigin.TemporaryFiles => "Temporary Files",
+        ReviewOrigin.Duplicates => "Duplicate Files",
         _ => "Unknown",
     };
 

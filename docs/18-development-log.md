@@ -568,3 +568,219 @@ per-folder figures; to be watched under BLK-009.
 ### Next
 
 Phase 5: duplicate detection.
+
+## 2026-11-04 --- Phase 5: duplicate detection
+
+### Delivered
+
+-   **Duplicate Files page** (F-025 to F-027): one drive at a time, a
+    smallest-size choice, an option for system folders, progress and
+    Stop, groups by space that could be freed with a category filter, each
+    group's copies with location, hard-link notes and a warning in
+    program folders, "Check again", review queue, export.
+-   **Engine** (`FreeAll.Duplicates`): size groups from the index, largest
+    first; streaming SHA-256; byte-for-byte comparison behind every group;
+    identity and change metadata checked before and after each read; two
+    size groups at once, never more than two files open each.
+-   **File access:** a metadata-only handle decides whether contents may
+    be read; contents come through `ReOpenFile`. A path that now leads
+    elsewhere is refused (final path, volume serial, file ID). Other
+    programs are never blocked. TD-038 records the measurements behind
+    this.
+-   **Saved hashes** (`FileHashes`, schema version 5), invalidated by
+    every condition in `11-data-model.md` §5. They only choose what to
+    compare, so they can't cause a false claim.
+-   **Hard links** (F-028): names of one file are one copy; a file with
+    names elsewhere counts as freeing nothing. Reclaim uses each file's
+    real allocation.
+-   **Review queue guard:** every name of a group can't be queued.
+    Phase 6 must repeat this against the disk (TD-041).
+-   **Fixed along the way:** items from Application Residue and Temporary
+    Files showed "Unknown" as their origin in the review queue
+    (`ScanText.Origin` had no case for them).
+-   **Fixed along the way:** `ScanCoordinator` closed the channel before
+    cancelling after a store failure, so a scanner could find its writes
+    failing with no cancellation visible yet. This made
+    `A_store_failure_stops_the_scanner…` fail now and then, and it failed
+    the first full build of this phase. It now cancels first; the suite
+    then passed 25 times out of 25.
+
+### Real-data review (development PC, C:, Debug build)
+
+Scan: 969,365 files, 332 GB, partial (118 errors, as in earlier phases).
+Timings include writing results; the second run reuses saved hashes.
+
+  Run                                 Time     Hashed     Compared  Groups  Could free
+  ----------------------------------- -------- ---------- --------- ------- ----------
+  Default, before the tool-folder     61.9 s   5.0 GB     4.8 GB    192     2.38 GB
+  rule
+  Same, second run                    14.4 s   none       4.8 GB    192     2.38 GB
+  Default, with the tool-folder rule  9.9 s    1.5 GB     1.4 GB    11      699 MB
+  Same, second run                    4.0 s    none       1.4 GB    11      699 MB
+  Including system folders            156.1 s  17.9 GB    14.9 GB   928     7.39 GB
+
+-   7,568 files shared a size at 1 MB or more. No hash ever matched
+    without the bytes matching (0 mismatches in any run).
+-   Peak working set 409 MB, the same as the scan on its own; the analysis
+    added nothing measurable to that peak. In an earlier run with a lower
+    scan peak (343 MB) the analysis reached 371 MB. UI delay at most 22 ms.
+-   With system folders included: 137 files unreadable, 5 in use, 25
+    changed since the scan, all counted, and the run said so. Nothing
+    failed on WinSxS, locked files or denied folders.
+-   **The review changed the rules.** Most of the 192 groups in the first
+    run were `.vscode\extensions`, `.gradle` and `.maestro` files: real
+    duplicates, but removing one breaks a tool, and they carried no
+    warning. Tool folders at the top of a profile are now treated like
+    application data (TD-037). All 11 groups that remain are real
+    duplicates by content, but most are still not obvious savings: two
+    `freeall.db` test databases, the same `node.exe` in two tool folders,
+    and files under `node_modules`. Which of those are worth removing
+    needs a person, as the page says.
+-   No cloud-only file shared a size with another file at 1 MB or more on
+    this PC, so the run itself didn't exercise that rule. It was checked
+    directly on four real OneDrive placeholders instead.
+-   A copy of this PC's local database upgraded from schema version 4 to 5
+    and the app opened it. That database is small, so this is a light
+    check; the migration only adds tables. The published build was not
+    launched, because that would migrate the real database; the Debug
+    build was.
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: 0 warnings, 0
+errors; 656 tests, 654 passed, 2 skipped (symbolic links need Developer
+Mode or elevation, one in the scanner tests and one here); no vulnerable
+packages; self-contained win-x64 publish succeeded; signing skipped
+(DEC-025). New: 167 tests in `FreeAll.Duplicates.Tests`, and
+`DuplicatesViewModelTests` and a read-only guard for the project.
+
+### Defects found and fixed during Phase 5
+
+-   A database failure at the final save left a run marked as running
+    until the next start (found by a test written for it).
+-   Pressing Stop while groups were being saved could lose them while
+    the counts still included them (found by reviewing the code; the fake
+    store now honours cancellation, so a test covers it).
+-   A file whose final path couldn't be read was counted as "reached
+    through a link". It is still refused, but as unreadable.
+-   "Check again" said "still identical" without checking that neither
+    file moved during its own comparison.
+-   Selected rows: the path line used a fixed secondary colour and was
+    nearly unreadable on the accent. It now inherits the row's colour.
+-   The real-data review above (tool folders).
+
+### Open
+
+-   F-025 to F-027 stay IMPLEMENTED: see the list in
+    `17-feature-checklist.md`. The `security-review` tool couldn't run
+    (it needs a remote, which this repository doesn't have yet), so the
+    focused review `15-ai-agent-rules.md` §7 asks for was the
+    implementing agent's own.
+-   The default scope (system, application data and tool folders left
+    out) is an engineering decision within DEC-013 and PR-010, recorded
+    as TD-037. The product owner may want a different default.
+-   A write through a memory-mapped view moves no time until flushed, so
+    it can't be told from one made just after the comparison (TD-038).
+-   Windows may update last-access times when contents are read, on
+    volumes where that is enabled (TD-038).
+-   The same secondary-colour problem exists on other pages' selected
+    rows, for example Application Residue (BLK-006).
+-   Carried over: BLK-018 (residue sign-off), manual F-007 tests, Narrator
+    and high-contrast review, elevated scanning, GitHub push and first CI
+    run.
+
+### Next
+
+Phase 6: cleanup, quarantine and helper. It must keep the rule that a copy
+outside the selection still exists and matches at removal time (TD-041).
+
+## 2026-11-04 --- Phase 6: cleanup, quarantine and helper
+
+### Delivered
+
+-   **Cleanup review** (from the review queue): the exact items, a fresh
+    check of each with its risk and reasons, the destination, a final
+    confirmation, then what really happened to each item. Permanent
+    deletion has its own acknowledgement and a distinct button.
+-   **Recycle Bin** (F-029) with a gate against silent permanent deletion
+    and proof of arrival (TD-042).
+-   **Quarantine** (F-030, F-031): an atomic move on one drive; copy,
+    verify, then remove across drives (TD-044).
+-   **Restore and conflicts** (F-032): integrity first, nothing overwritten
+    without a choice (TD-045).
+-   **Protected-path policy** applied in the app and the helper, handle-based
+    changes, and revalidation immediately before each item (TD-043).
+-   **The last copy of a duplicate can't go:** Phase 5's rule, now checked
+    against the disk with a byte comparison.
+-   **Elevated helper** (F-033): allowlisted commands, a per-session pipe,
+    both ends checked, independent validation (TD-047).
+-   **Audit** (F-037) written ahead of every step, and the **Activity** page
+    with operations, per-item results and quarantine (TD-046).
+
+### What the spike changed
+
+Before designing, the shell's delete was tested on a location with no
+Recycle Bin. With the usual flags it destroyed the file and reported
+success, with no error of any kind. That is the behaviour the rules
+forbid, and it is invisible from the API's result. The design followed
+from that measurement: refuse in `PreDeleteItem`, and require proof in
+`PostDeleteItem`. The test repeats the scenario with the real code on a
+`subst` drive.
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: 0 warnings, 0
+errors; 871 tests, 869 passed, 2 skipped (symbolic links need Developer
+Mode or elevation); no vulnerable packages; self-contained win-x64
+publish succeeded with the helper digest embedded and checked against the
+published helper; signing skipped (DEC-025). New: 73 tests in
+`FreeAll.Cleanup.Tests`, 128 in `FreeAll.Security.Tests`, and
+`CleanupViewModelTests`. Both new suites were then run five more times
+without a failure.
+
+No real user data was touched by any test. Tests that use the Recycle Bin
+remove their own items by the path Windows returned; the one test that
+creates `FreeAll Quarantine` at the top of a drive removes it again.
+
+### Defects found and fixed during Phase 6
+
+Found by reviewing the code after the tests passed:
+
+-   Stopping while quarantine was hashing an item threw out of the run,
+    leaving the operation unfinished and the item in progress.
+-   An unexpected error on one item could abort the batch. It is now that
+    item's result.
+-   The helper's UAC launch path wasn't tested, because the tests turned
+    shell-execute off. They now use the same launch, without `runas`.
+-   A damaged quarantine record could have pointed deletion at any file.
+    Records that don't point into quarantine are now refused.
+-   Start-up reconciliation would have marked an item abandoned because
+    its drive wasn't connected.
+-   The quarantine folder was created and then given its access list,
+    rather than created with it.
+
+Found by looking at the screens: the button for permanent deletion looked
+like any other action; "0 bytes measured" after a move within one drive;
+destinations shown as volume GUID paths.
+
+### Open
+
+-   BLK-019: the helper has never run elevated. BLK-020: an independent
+    security review. Both need a person.
+-   Elevated scanning (DEC-023) isn't built; cleanup doesn't depend on it.
+-   Manual checks in `12-quality-assurance.md` §3.2: a real removable
+    drive, an item too large for the Recycle Bin, a crash during a copy.
+-   Folder items often show as changed unless the scan is recent, because
+    their contents must still match. That errs on the safe side but may
+    frustrate; worth watching in real use.
+-   Files added to a folder between its final check and its removal go with
+    it (TD-043).
+-   An operation that fails to write its audit stops there; the item in
+    progress shows as interrupted at the next start.
+-   Carried over: BLK-018, manual F-007 tests, Narrator and high-contrast
+    review, GitHub push and first CI run, and Phase 5's own list.
+
+### Next
+
+Phase 7: Windows storage, installer and release hardening. Before that:
+commit, push, and arrange the independent review.
