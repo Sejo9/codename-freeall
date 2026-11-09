@@ -42,6 +42,7 @@ Windows 11 on a 64-bit Intel or AMD PC (x64). Windows 10 and ARM PCs aren't supp
 - **English only.** Dates and numbers follow your Windows regional format.
 - **Uninstaller copy left behind:** the uninstaller leaves a copy of itself (about 2 MB) in your temporary folder, because a running program can't delete itself. Windows' Storage Sense clears it.
 - **Folder changes before removal:** when you remove a folder, anything added to it after FreeAll last checked it goes too.
+- **How changes are detected:** before removing a file, FreeAll checks that it's the same file, with the same size and modified time as when it was scanned. It doesn't compare the contents, so a program that rewrites a file with the same size and puts the old modified time back isn't noticed. The Recycle Bin, the default, keeps such a file recoverable.
 
 ### Testing so far
 

@@ -978,6 +978,19 @@ Version set to 1.0.0 (`Directory.Build.props`, the three app manifests); the
 1.0.0 notes rewritten for people downloading it, since they become the
 GitHub release page. Tag `v1.0.0` pushed to start the release workflow.
 
+The first run failed before anything was published: one test,
+`A_file_changed_after_review_is_skipped(RecycleBin)`, failed on GitHub's
+runner (CI on the same commit too); it passed locally, including a fresh
+clone of the tag in Release. The test rewrote a 1,000-byte file with
+different 1,000 bytes milliseconds after writing it, and on the runner the
+last-write time stayed the same, so the change check (identity, size,
+last-write time; TD-043) saw no change. In real use a scan and a removal are
+far apart, so an edit gets a later time; the remaining case, a same-size
+rewrite that restores the old time, is now written down in TD-043 and the
+1.0.0 known limitations. Test files are now created with a last-write time
+an hour in the past. Since nothing had been published, the tag was moved to
+the fixed commit and pushed again.
+
 ### Next
 
 Owner: approve the `release` environment when the workflow asks, and answer

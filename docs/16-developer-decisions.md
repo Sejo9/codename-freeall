@@ -1086,6 +1086,13 @@ Measured on Windows 11 with `IFileOperation` before this was designed
     anywhere inside blocks the whole folder, unreadable parts block it,
     and its size must still match (hard links counted once, as the scan
     counts them). A mismatch skips the item and asks for a new scan.
+-   Contents are not compared (that would mean reading every byte at
+    removal time). A file rewritten in place with exactly the same size and
+    its old last-write time put back (some copy and sync tools preserve
+    times) passes the check. The Recycle Bin, the default, keeps such a file
+    recoverable. Tests create their files with a last-write time an hour in
+    the past: GitHub's runners showed that a same-size rewrite milliseconds
+    after writing can keep the same last-write time (2026-11-09).
 -   Changes go through the handle whose identity was checked
     (`SafeTarget`: `FileDispositionInfoEx`, `FileRenameInfoEx`), so the path
     can't be swapped in between. As with reading (TD-038), the final path

@@ -83,6 +83,11 @@ internal sealed class CleanupFixture : IDisposable
         var path = Path.Combine(Tree, relative);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, content ?? Bytes(1000));
+
+        // As if written well before it was scanned. Revalidation compares identity, size and last-write time
+        // (TD-043), and a test that rewrites a file within the same clock tick as writing it would otherwise
+        // leave that time unchanged: GitHub's runners showed this with a same-size rewrite.
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddHours(-1));
         return path;
     }
 
