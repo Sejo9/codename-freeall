@@ -40,8 +40,10 @@ internal sealed partial class SettingsViewModel : PageViewModel
         ILogger<SettingsViewModel> logger,
         IRetentionSettings? retention = null,
         IScanStore? store = null,
-        IConfirmation? confirmation = null)
+        IConfirmation? confirmation = null,
+        UpdatesViewModel? updates = null)
     {
+        Updates = updates;
         _retention = retention;
         _store = store;
         _confirmation = confirmation;
@@ -71,9 +73,12 @@ internal sealed partial class SettingsViewModel : PageViewModel
         _initialized = true;
     }
 
+    /// <summary>Update checks (F-036); null in tests that don't need them.</summary>
+    public UpdatesViewModel? Updates { get; }
+
     public override string Title => "Settings";
 
-    public override string? Subtitle => "Appearance, privacy and where FreeAll keeps its data.";
+    public override string? Subtitle => "Appearance, scan history, updates, privacy and where FreeAll keeps its data.";
 
     public IReadOnlyList<ThemeOption> ThemeOptions { get; } =
     [

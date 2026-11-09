@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using FreeAll.Application.Abstractions;
@@ -57,6 +58,7 @@ internal static class ScreenCapture
         }
 
         await CleanupDemoAsync(services, directory);
+        var accessibility = new List<string>();
 
         foreach (var appTheme in new[] { AppTheme.Light, AppTheme.Dark })
         {
@@ -66,6 +68,21 @@ internal static class ScreenCapture
                 shell.SelectedItem = item;
                 await SettleAsync(ui);
                 Save(window, Path.Combine(directory, $"{appTheme}-{item.Key}.png"));
+                if (appTheme == AppTheme.Light)
+                {
+                    accessibility.AddRange(AuditAccessibility(window, item.Key));
+                }
+            }
+
+            // The first-start update question, and an update as Settings shows it (review only; nothing is fetched).
+            if (shell.Updates is { } updates)
+            {
+                updates.PreviewForReview(showQuestion: true);
+                shell.NavigateTo("settings");
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-updates-question.png"));
+                accessibility.AddRange(AuditAccessibility(window, "updates-question"));
+                updates.PreviewForReview(showQuestion: false);
             }
 
             shell.NavigateTo("activity");
@@ -168,6 +185,21 @@ internal static class ScreenCapture
                 history.CloseComparisonCommand.Execute(null);
             }
         }
+
+        // Windows' Text size at 150 %: the layout must still fit and nothing may be cut off.
+        var textScale = services.GetRequiredService<TextScaleService>();
+        theme.Apply(AppTheme.Light);
+        textScale.Override(1.5);
+        foreach (var key in new[] { "drives", "windows", "settings", "duplicates" })
+        {
+            shell.NavigateTo(key);
+            await SettleAsync(ui);
+            Save(window, Path.Combine(directory, $"Light-text150-{key}.png"));
+        }
+
+        textScale.Override(null);
+        await File.WriteAllLinesAsync(Path.Combine(directory, "accessibility.txt"), accessibility.Count == 0 ? ["No problems found."] : accessibility);
+        metrics.Add($"accessibility: {accessibility.Count} problem(s) in the automation tree");
 
         metrics.AddRange(await MeasureExplorerAsync(shell, ui));
         metrics.AddRange(await DumpResidueAsync(services, directory));
@@ -456,6 +488,51 @@ internal static class ScreenCapture
         return results;
     }
 
+    /// <summary>
+    /// Walks the UI Automation tree of the window as a screen reader sees it and lists focusable controls
+    /// without a name, and any element that exposes an icon glyph (a private-use character) as its name.
+    /// </summary>
+    private static List<string> AuditAccessibility(Window window, string page)
+    {
+        var problems = new List<string>();
+        var named = new[]
+        {
+            AutomationControlType.Button, AutomationControlType.CheckBox, AutomationControlType.ComboBox, AutomationControlType.Edit,
+            AutomationControlType.RadioButton, AutomationControlType.Hyperlink, AutomationControlType.Slider, AutomationControlType.List,
+            AutomationControlType.DataGrid, AutomationControlType.Tree, AutomationControlType.TabItem, AutomationControlType.MenuItem,
+        };
+
+        void Walk(AutomationPeer peer, int depth)
+        {
+            if (depth > 80 || peer.GetChildren() is not { } children)
+            {
+                return;
+            }
+
+            foreach (var child in children)
+            {
+                if (child.IsControlElement())
+                {
+                    var type = child.GetAutomationControlType();
+                    var name = child.GetName() ?? string.Empty;
+                    if (name.Any(c => c is >= (char)0xE000 and <= (char)0xF8FF))
+                    {
+                        problems.Add($"{page}: {type} ({child.GetClassName()}) exposes an icon glyph as its name");
+                    }
+                    else if (string.IsNullOrWhiteSpace(name) && named.Contains(type) && child.IsKeyboardFocusable() && child.IsEnabled())
+                    {
+                        problems.Add($"{page}: unnamed {type} ({child.GetClassName()}, id '{child.GetAutomationId()}')");
+                    }
+                }
+
+                Walk(child, depth + 1);
+            }
+        }
+
+        Walk(UIElementAutomationPeer.CreatePeerForElement(window), 0);
+        return problems;
+    }
+
     private static double Median(List<double> values)
     {
         if (values.Count == 0)
@@ -484,9 +561,12 @@ internal static class ScreenCapture
     {
         var content = (FrameworkElement)window.Content;
         var dpi = VisualTreeHelper.GetDpi(content);
+
+        // With text scaling the content has a layout transform; its actual size is before the transform.
+        var bounds = content.LayoutTransform.TransformBounds(new Rect(0, 0, content.ActualWidth, content.ActualHeight));
         var bitmap = new RenderTargetBitmap(
-            (int)Math.Ceiling(content.ActualWidth * dpi.DpiScaleX),
-            (int)Math.Ceiling(content.ActualHeight * dpi.DpiScaleY),
+            (int)Math.Ceiling(bounds.Width * dpi.DpiScaleX),
+            (int)Math.Ceiling(bounds.Height * dpi.DpiScaleY),
             dpi.PixelsPerInchX,
             dpi.PixelsPerInchY,
             PixelFormats.Pbgra32);

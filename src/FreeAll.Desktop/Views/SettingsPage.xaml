@@ -1,6 +1,7 @@
 <UserControl x:Class="FreeAll.Desktop.Views.SettingsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
@@ -73,10 +74,41 @@
         </StackPanel>
       </Border>
 
+      <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Updates" Visibility="{Binding Updates, Converter={StaticResource NullToVisibility}}" />
+      <Border Margin="{StaticResource Thickness.SectionGap}" DataContext="{Binding Updates}" Style="{StaticResource Card}" Visibility="{Binding Converter={StaticResource NullToVisibility}}">
+        <StackPanel>
+          <DockPanel>
+            <ComboBox Width="300"
+                      VerticalAlignment="Center"
+                      AutomationProperties.Name="Update checks"
+                      DisplayMemberPath="Label"
+                      DockPanel.Dock="Right"
+                      IsEnabled="{Binding IsConfigured}"
+                      ItemsSource="{Binding ChoiceOptions}"
+                      SelectedItem="{Binding SelectedChoice}" />
+            <StackPanel Margin="0,0,16,0">
+              <TextBlock Style="{StaticResource Typography.Body}" Text="Update checks" />
+              <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding SourceText}" TextWrapping="Wrap" />
+            </StackPanel>
+          </DockPanel>
+          <WrapPanel Margin="0,12,0,0">
+            <Button Margin="0,0,8,4" Command="{Binding CheckNowCommand}" Content="Check now" />
+            <Button Margin="0,0,8,4" Command="{Binding DownloadCommand}" Content="Download update" Visibility="{Binding HasAvailable, Converter={StaticResource BoolToVisibility}}" />
+            <Button Margin="0,0,8,4" Command="{Binding InstallCommand}" Content="Install update…" Style="{StaticResource Button.Accent}" Visibility="{Binding IsDownloaded, Converter={StaticResource BoolToVisibility}}" />
+          </WrapPanel>
+          <ProgressBar Height="4" Margin="0,4,0,0" AutomationProperties.Name="Download progress" Maximum="1" Value="{Binding Progress}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+          <TextBlock Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" Text="{Binding StatusText}" TextWrapping="Wrap" Visibility="{Binding StatusText, Converter={StaticResource NullToVisibility}}" />
+          <StackPanel Margin="0,8,0,0" Visibility="{Binding HasAvailable, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding AvailableTitle}" />
+            <TextBlock Margin="0,4,0,0" Style="{StaticResource Typography.Body}" Text="{Binding AvailableDetails}" TextWrapping="Wrap" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
       <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource SectionHeader}" Text="Privacy" />
       <Border Margin="{StaticResource Thickness.SectionGap}" Style="{StaticResource Card}">
         <DockPanel>
-          <TextBlock Margin="0,2,12,0"
+          <controls:Glyph Margin="0,2,12,0"
                      VerticalAlignment="Top"
                      DockPanel.Dock="Left"
                      Style="{StaticResource Typography.Icon}"
@@ -85,7 +117,7 @@
             <TextBlock Style="{StaticResource Typography.Body}" Text="Everything stays on this PC" />
             <TextBlock Margin="0,4,0,0"
                        Style="{StaticResource Typography.Caption}"
-                       Text="FreeAll analyses storage locally. It does not send telemetry, file names, paths, hashes or any other information over the network." />
+                       Text="FreeAll analyses storage locally. It does not send telemetry, file names, paths, hashes or any other information over the network. The only network use is the update check below, and only if you turn it on; it downloads update information and sends nothing about this PC." />
           </StackPanel>
         </DockPanel>
       </Border>

@@ -246,11 +246,11 @@ internal sealed class FakeScanIndex : IScanIndex
 
     private Task<T> Result<T>(T value) => Fail ? Task.FromException<T>(new PersistenceException("Index unavailable.")) : Task.FromResult(value);
 
-    private static IndexEntry Folder(int key, int? parent, string path, int depth, long files, long folders) => new(
+    internal static IndexEntry Folder(int key, int? parent, string path, int depth, long files, long folders) => new(
         IndexEntryKind.Folder, 1, key, null, VolumePath.NameOf(path), path, string.Empty, files * 1000, files * 4096, files, folders,
         null, null, null, FileAttributes.Directory, 0, null, null, DirectoryScanState.Scanned, 0);
 
-    private static IndexEntry File(int directory, string path, long size, FileCategory category) => new(
+    internal static IndexEntry File(int directory, string path, long size, FileCategory category) => new(
         IndexEntryKind.File, 1, directory, size, VolumePath.NameOf(path), path, FileClassifier.ExtensionOf(VolumePath.NameOf(path)), size, size + 100,
         null, null, null, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), null, FileAttributes.Archive, 0, new UInt128(0, 9), new FileClassification(category, ClassificationReason.Extension), null, 0);
 }

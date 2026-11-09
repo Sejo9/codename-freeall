@@ -1,6 +1,7 @@
 <UserControl x:Class="FreeAll.Desktop.Views.DuplicatesPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:duplicates="clr-namespace:FreeAll.Desktop.ViewModels.Duplicates"
@@ -26,9 +27,9 @@
                   IsChecked="{Binding IncludeSystemFolders}"
                   IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}"
                   ToolTip="Files there usually belong to a program that needs them where they are, even when they are identical" />
-        <Button Margin="0,0,8,8" Command="{Binding FindCommand}" Style="{StaticResource Button.Accent}">
+        <Button AutomationProperties.Name="Find duplicates" Margin="0,0,8,8" Command="{Binding FindCommand}" Style="{StaticResource Button.Accent}">
           <StackPanel Orientation="Horizontal">
-            <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE721;" />
+            <controls:Glyph Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE721;" />
             <TextBlock Text="Find duplicates" />
           </StackPanel>
         </Button>
@@ -53,7 +54,7 @@
       <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Body}" Text="{Binding SummaryText}" TextWrapping="Wrap" Visibility="{Binding SummaryText, Converter={StaticResource NullToVisibility}}" />
       <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding CoverageText}" TextWrapping="Wrap" Visibility="{Binding CoverageText, Converter={StaticResource NullToVisibility}}" />
       <DockPanel Margin="0,4,0,0" Visibility="{Binding FreshnessText, Converter={StaticResource NullToVisibility}}">
-        <TextBlock Margin="0,1,6,0" VerticalAlignment="Top" DockPanel.Dock="Left" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" />
+        <controls:Glyph Margin="0,1,6,0" VerticalAlignment="Top" DockPanel.Dock="Left" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" />
         <TextBlock Style="{StaticResource Typography.Caption}" Text="{Binding FreshnessText}" TextWrapping="Wrap" />
       </DockPanel>
       <TextBlock AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" Text="{Binding StatusMessage}" TextWrapping="Wrap" Visibility="{Binding StatusMessage, Converter={StaticResource NullToVisibility}}" />

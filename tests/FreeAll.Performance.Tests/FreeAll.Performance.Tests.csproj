@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Soak and performance measurements (BLK-009, docs/12-quality-assurance.md §6). The short checks run with
+    every build; the long soak is an explicit test, run with tools/Run-Soak.ps1. Results go to artifacts/perf.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeAll.Infrastructure/FreeAll.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/FreeAll.Scanner/FreeAll.Scanner.csproj" />
+  </ItemGroup>
+
+</Project>

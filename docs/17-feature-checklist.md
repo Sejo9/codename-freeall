@@ -8,10 +8,10 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-001             WPF .NET 10 solution      IN PROGRESS       Build and CI
                     foundation                                  
 
-  F-002             Per-user self-contained   NOT STARTED       Install/upgrade/uninstall
+  F-002             Per-user self-contained   IMPLEMENTED       Install/upgrade/uninstall
                     x64 package                                 tests
 
-  F-003             Windows 11 servicing      NOT STARTED       Tested release/edition matrix
+  F-003             Windows 11 servicing      IN PROGRESS       Tested release/edition matrix
                     compatibility matrix                        
 
   F-004             ARM64 feasibility and     NOT STARTED       Native dependency and
@@ -88,12 +88,12 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-033             Elevated helper and       IMPLEMENTED       Security test suite
                     secure IPC                                  
 
-  F-034             Windows storage           NOT STARTED       Supported API validation
+  F-034             Windows storage           IMPLEMENTED       Supported API validation
                     integration                                 
 
   F-035             CSV/JSON/HTML/PDF export  IMPLEMENTED       Format and injection tests
 
-  F-036             Update opt-in and         NOT STARTED       Update security tests
+  F-036             Update opt-in and         IMPLEMENTED       Update security tests
                     signature verification                      
 
   F-037             Audit and diagnostics     IMPLEMENTED       Audit completeness tests
@@ -500,8 +500,8 @@ locations reported, not offered; per-rule keep. Evidence:
 `ResidueAnalysisTests.Temporary_rules…`, `TemporaryFilesViewModelTests`,
 the review of matches on the development PC (`18-development-log.md`;
 20 locations, 20.0 GB, analysed in 0.1 s).
-Before COMPLETED: Windows cleanup APIs for managed locations (BLK-007,
-Phase 7). TD-035.
+The Windows-managed locations reported here are also measured on the
+Windows Storage page, with Windows' own tools for each (F-034, TD-048). Before COMPLETED: Narrator review (BLK-006). TD-035.
 
 ### F-039 --- Persistence foundation (IMPLEMENTED)
 
@@ -519,6 +519,115 @@ plain-language errors for startup, UI and background failures; a
 protected data folder. Evidence: `FileLoggingTests`, `PathRedactorTests`,
 `DataDirectorySecurityTests`. Outstanding before COMPLETED:
 exception-message redaction (TD-014 known gap).
+
+### F-002 --- Per-user self-contained x64 package (IMPLEMENTED)
+
+Acceptance criteria (`13-deployment-release.md` §2): installs per user
+without administrator rights; no machine-wide writes; preserves user data on
+upgrade; asks before deleting user data on uninstall; registers a shortcut
+and uninstall entry cleanly; repair or reinstall without touching the
+database; clean upgrade with a way back if it fails; signed (DEC-025 defers
+this).
+
+  Requirement                         Evidence (`FreeAll.Installer.Tests`)
+  ----------------------------------- --------------------------------------------
+  No administrator rights, per user   Manifest `asInvoker` and no machine-wide
+                                      location in the source
+                                      (`InstallerPrivilegeTests`); production
+                                      locations all inside the profile
+  Data kept on upgrade                `An_upgrade_replaces_the_program_and_keeps…`
+                                      (contents and time stamp unchanged)
+  Asks before deleting data           `Uninstalling_keeps_the_data_by_default…`,
+                                      `…removal_chosen_deletes…`, `Cancelling_the_data…`,
+                                      `Data_holding_quarantined_files_is_never…`
+  Shortcut and uninstall entry        `The_real_registration_writes_a_complete…`
+                                      (real HKCU key under a test name, real .lnk)
+  Repair                              `Reinstalling_the_same_version_repairs…`
+  Safe upgrade                        `A_failed_upgrade_leaves_the_installed…`,
+                                      `A_file_held_open…`, `While_FreeAll_runs…`,
+                                      `Folders_a_crashed_setup_left_behind…`
+  No downgrade over newer data        `An_older_version_is_never_installed…`
+  Damaged or crafted setup files      `PayloadSafetyTests` (changed byte, truncated
+                                      download, paths outside the folder, unlisted
+                                      entries, hash mismatch)
+  The real process                    `The_real_installer_process_installs_and…`;
+                                      `build.ps1` smoke test with the Native AOT setup
+                                      and the installed uninstaller
+
+On this PC: the real app (443 files, 150 MB) packed into a 66 MB setup file;
+silent install 3.5 s, uninstall 0.5 s (TD-049).
+
+Before COMPLETED: an interactive install, upgrade and uninstall by a person on
+a clean user account (`12-quality-assurance.md` §3.3), and signing when a
+certificate exists (DEC-025).
+
+### F-003 --- Windows 11 servicing compatibility matrix (IN PROGRESS)
+
+Acceptance criteria (`13-deployment-release.md` §6): a matrix with edition,
+release, servicing end dates, the FreeAll build tested, architecture and
+scan, cleanup, helper and installer status, and known issues; releases enter
+after testing and leave when servicing ends.
+
+Evidence: `24-compatibility-matrix.md` with Microsoft's dates (read
+2026-11-08) and one tested row (Windows 11 Pro 26H2, x64);
+`tools/Test-Compatibility.ps1` records the automated part on any PC.
+Outstanding: 25H2 (Home/Pro) and 24H2 Enterprise/Education, and the manual
+steps (helper through UAC) on each.
+
+### F-034 --- Windows storage integration (IMPLEMENTED)
+
+Acceptance criteria (`04-functional-specification.md` §9, `03` §J): a
+breakdown of what Windows uses; supported Windows mechanisms only; nothing in
+WinSxS, servicing packages or restore points deleted by FreeAll; clear
+descriptions and consent boundaries; non-reclaimable usage explained.
+
+Evidence: the Windows Storage page (fifteen areas, TD-048) on the
+development PC's C: scan (component store 11.9 GB counted once per file,
+Windows folder at least 20.5 GB, live Recycle Bin figures for C: and E:);
+`Phase7ViewModelTests` (measured, lower-bound and unreadable areas, a path
+under an unreadable folder shown as not readable, Windows' own Recycle Bin
+figure, the allowlist, a forged tool refused, failures reported);
+`RecycleBinUsageTests` (real query; anything but a drive root refused);
+screenshots in light and dark. No code path removes anything here.
+
+Before COMPLETED: a person presses each Windows tool button on each tested
+Windows release (`24-compatibility-matrix.md` step 6), and Narrator review
+(BLK-006).
+
+### F-036 --- Update opt-in and signature verification (IMPLEMENTED)
+
+Acceptance criteria (PR-018, `13-deployment-release.md` §5,
+`08-security-privacy.md` §9): asked at first start; off until the user agrees;
+official HTTPS endpoint; signed manifest and verified package; release notes
+and compatibility shown; nothing downloaded or installed without approval;
+no silent elevation; a failed signature rejects the update and says so;
+downgrade and replay prevented.
+
+Evidence: `UpdateManifestVerifierTests` (every changed byte, another key, no
+prefix, malformed signatures, replayed sequence, expiry, future dates, every
+invalid field, unsafe package addresses, unknown, missing and repeated
+fields, key type), `HttpUpdateServiceTests` (no network without a source,
+nothing about the PC in requests, up to date, incompatible, tampered, replay,
+unreadable record, a non-HTTPS answer, oversized answers, verified download,
+mismatched and oversized downloads discarded, a file changed after download
+not started, only the download folder), `UpdateToolingTests` (the release
+scripts' key and manifest verify in the app), `Phase7ViewModelTests` (asked
+once, no check before an answer, weekly, never a download without asking,
+install needs a download and a confirmation). TD-050.
+
+Before release: BLK-021 (the address and the key). Until then release builds
+can't check, and say so.
+
+### F-038 --- Accessibility and high DPI (IN PROGRESS)
+
+Done (TD-051): decorative glyphs hidden from screen readers, every page's
+automation tree audited in the capture run (0 problems after fixes), static
+markup tests, Windows Text size followed live (captures at 150 %), regional
+formats in bindings, per-monitor DPI awareness (manifest). Outstanding:
+Narrator, a Windows contrast theme and keyboard-only use, by a person
+(BLK-006); and responsive layouts: at 150 % text on a window narrower than
+about 1,400 pixels, list-and-details pages crop the details pane (seen in the
+150 % captures), so those panes should stack on narrow windows.
 
 ### F-041 --- Windows 11 / x64 runtime gate (IMPLEMENTED)
 

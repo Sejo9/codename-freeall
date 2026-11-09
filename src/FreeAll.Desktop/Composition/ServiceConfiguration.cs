@@ -4,6 +4,7 @@ using FreeAll.Application.Export;
 using FreeAll.Application.Preferences;
 using FreeAll.Application.Scanning;
 using FreeAll.Application.Cleanup;
+using FreeAll.Application.Updates;
 using FreeAll.Cleanup.Elevation;
 using FreeAll.Cleanup.Execution;
 using FreeAll.Cleanup.Planning;
@@ -24,6 +25,8 @@ using FreeAll.Duplicates.Hashing;
 using FreeAll.Infrastructure.Export;
 using FreeAll.Infrastructure.Persistence;
 using FreeAll.Infrastructure.Persistence.Migrations;
+using FreeAll.Infrastructure.Updates;
+using FreeAll.Infrastructure.Windows;
 using FreeAll.Residue.Inventory;
 using FreeAll.Scanner.Enumeration;
 using FreeAll.Scanner.Journal;
@@ -75,6 +78,7 @@ internal static class ServiceConfiguration
         services.AddSingleton<IDuplicateAnalysis, DuplicateFinder>();
         services.AddSingleton<ICleanupStore, SqliteCleanupStore>();
         services.AddSingleton<IRecycleBin, ShellRecycleBin>();
+        services.AddSingleton<IRecycleBinUsage, ShellRecycleBinUsage>();
         services.AddSingleton<IFileCopier, TreeCopier>();
         services.AddSingleton(sp => new TargetInspector(OwnFolders(paths, sp.GetRequiredService<IVolumePathResolver>())));
         services.AddSingleton<SurvivingCopyRule>();
@@ -83,6 +87,13 @@ internal static class ServiceConfiguration
         services.AddSingleton<QuarantineRestorer>();
         services.AddSingleton<IElevatedHelper>(_ => new ElevatedHelperClient(new HelperLaunchOptions(AppContext.BaseDirectory, ExpectedHelperDigest())));
         services.AddSingleton<CleanupExecutor>();
+        services.AddSingleton<IUpdateService>(sp => new HttpUpdateService(
+            UpdateConfiguration.TryCreate(BuildValue("UpdateManifestUrl"), BuildValue("UpdatePublicKey")),
+            sp.GetRequiredService<IUserPreferences>(),
+            paths,
+            ProductVersion(),
+            Environment.OSVersion.Version.Build,
+            sp.GetRequiredService<ILogger<HttpUpdateService>>()));
         services.AddSingleton(ScanOptions.Default);
         services.AddSingleton(sp => new ScanCoordinator(
             sp.GetRequiredService<IVolumeScanner>(),
@@ -98,6 +109,7 @@ internal static class ServiceConfiguration
         // Desktop services
         services.AddSingleton(application);
         services.AddSingleton<ThemeService>();
+        services.AddSingleton<TextScaleService>();
         services.AddSingleton<IThemeService>(sp => sp.GetRequiredService<ThemeService>());
         services.AddSingleton<IUiDispatcher>(_ => new WpfUiDispatcher(application.Dispatcher));
         services.AddSingleton<IUserNotifier, MessageBoxNotifier>();
@@ -113,6 +125,9 @@ internal static class ServiceConfiguration
         services.AddSingleton<IConfirmation, MessageBoxConfirmation>();
         services.AddSingleton<ExportActions>();
         services.AddSingleton<ISystemDrive, SystemDrive>();
+        services.AddSingleton<IAppLifetime, WpfAppLifetime>();
+        services.AddSingleton<UpdatesViewModel>();
+        services.AddSingleton<IWindowsToolLauncher, WindowsToolLauncher>();
         services.AddSingleton<SearchViewModel>();
         services.AddSingleton<ReviewQueueViewModel>();
         services.AddSingleton<CleanupReviewViewModel>();
@@ -128,6 +143,7 @@ internal static class ServiceConfiguration
         services.AddTransient<TemporaryFilesViewModel>();
         services.AddTransient<DuplicatesViewModel>();
         services.AddTransient<ActivityViewModel>();
+        services.AddTransient<WindowsStorageViewModel>();
         services.AddSingleton(sp => new ShellViewModel(
             CreateNavigation(sp),
             sp.GetRequiredService<IAppDatabase>(),
@@ -135,7 +151,8 @@ internal static class ServiceConfiguration
             sp.GetRequiredService<ILogger<ShellViewModel>>(),
             sp.GetRequiredService<SearchViewModel>,
             sp.GetRequiredService<ReviewQueueViewModel>,
-            sp.GetRequiredService<CleanupReviewViewModel>));
+            sp.GetRequiredService<CleanupReviewViewModel>,
+            sp.GetRequiredService<UpdatesViewModel>()));
         services.AddSingleton<MainWindow>();
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -162,8 +179,19 @@ internal static class ServiceConfiguration
     }
 
     /// <summary>The helper's digest, embedded by build.ps1 at publish (DEC-025). Other builds have none, so they can't start it.</summary>
-    private static string? ExpectedHelperDigest() =>
-        typeof(ServiceConfiguration).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == "HelperSha256")?.Value;
+    private static string? ExpectedHelperDigest() => BuildValue("HelperSha256");
+
+    /// <summary>A value build.ps1 embedded at publish (helper digest, update source and key). Debug builds have none.</summary>
+    private static string? BuildValue(string key) =>
+        typeof(ServiceConfiguration).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == key)?.Value;
+
+    /// <summary>This build's version (major.minor.patch), for update comparisons.</summary>
+    internal static Version ProductVersion()
+    {
+        var text = typeof(ServiceConfiguration).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+        var end = text.IndexOfAny(['+', '-']);
+        return Version.TryParse(end < 0 ? text : text[..end], out var version) ? version : new Version(0, 0, 0);
+    }
 
     /// <summary>Primary navigation in the order defined by docs/07-ui-ux-design.md §2.</summary>
     private static List<NavigationItem> CreateNavigation(IServiceProvider sp) =>
@@ -176,7 +204,7 @@ internal static class ServiceConfiguration
         new("residue", "Application Residue", "", sp.GetRequiredService<ResidueViewModel>),
         new("temporary", "Temporary Files", "", sp.GetRequiredService<TemporaryFilesViewModel>),
         new("duplicates", "Duplicate Files", "", sp.GetRequiredService<DuplicatesViewModel>),
-        Placeholder("windows", "Windows Storage", "", "How Windows itself uses storage, and the cleanup options Windows supports."),
+        new("windows", "Windows Storage", "", sp.GetRequiredService<WindowsStorageViewModel>),
         new("history", "Scan History", "", sp.GetRequiredService<ScanHistoryViewModel>),
         new("activity", "Activity", "", sp.GetRequiredService<ActivityViewModel>),
         new("settings", "Settings", "", sp.GetRequiredService<SettingsViewModel>),

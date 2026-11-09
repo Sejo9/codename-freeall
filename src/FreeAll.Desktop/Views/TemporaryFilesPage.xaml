@@ -1,6 +1,7 @@
 <UserControl x:Class="FreeAll.Desktop.Views.TemporaryFilesPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:residue="clr-namespace:FreeAll.Desktop.ViewModels.Residue"
@@ -18,9 +19,9 @@
     <DockPanel Grid.Row="0" Margin="0,0,0,12">
       <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" />
       <StackPanel Orientation="Horizontal">
-        <Button Command="{Binding AnalyseCommand}" Style="{StaticResource Button.Accent}">
+        <Button AutomationProperties.Name="Look again" Command="{Binding AnalyseCommand}" Style="{StaticResource Button.Accent}">
           <StackPanel Orientation="Horizontal">
-            <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
+            <controls:Glyph Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
             <TextBlock Text="Look again" />
           </StackPanel>
         </Button>
@@ -30,7 +31,7 @@
     <StackPanel Grid.Row="1" Margin="0,0,0,12">
       <Border MaxWidth="1100" HorizontalAlignment="Left" Style="{StaticResource Banner.Info}">
         <DockPanel>
-          <TextBlock Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Info}" Style="{StaticResource Typography.Icon}" Text="&#xE946;" />
+          <controls:Glyph Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Info}" Style="{StaticResource Typography.Icon}" Text="&#xE946;" />
           <TextBlock Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
             Only locations with a known purpose are listed, each with what removing it would mean. Sizes are from the last scan; "unchanged" counts items nothing has written to recently, which is a hint, not proof they aren't needed. Nothing is removed here.
           </TextBlock>

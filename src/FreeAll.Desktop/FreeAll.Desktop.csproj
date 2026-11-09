@@ -9,6 +9,8 @@
     <AssemblyName>FreeAll</AssemblyName>
     <RootNamespace>FreeAll.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- English is the only language in v1; resources added later fall back to it (TD-051). -->
+    <NeutralLanguage>en</NeutralLanguage>
     <!-- WPF0001: Application.ThemeMode (Fluent theme) is marked experimental; adopted under TD-011. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
@@ -20,6 +22,12 @@
   <!-- The helper's digest, passed in by build.ps1 at publish: the app refuses to start any other helper (DEC-025). -->
   <ItemGroup Condition="'$(HelperSha256)' != ''">
     <AssemblyMetadata Include="HelperSha256" Value="$(HelperSha256)" />
+  </ItemGroup>
+
+  <!-- The update source and the project's update public key, passed in by build.ps1 for release builds (TD-050). -->
+  <ItemGroup Condition="'$(UpdateManifestUrl)' != '' And '$(UpdatePublicKey)' != ''">
+    <AssemblyMetadata Include="UpdateManifestUrl" Value="$(UpdateManifestUrl)" />
+    <AssemblyMetadata Include="UpdatePublicKey" Value="$(UpdatePublicKey)" />
   </ItemGroup>
 
   <ItemGroup>

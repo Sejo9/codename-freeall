@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Install, upgrade, repair and uninstall on throwaway folders and a test-only registry key (F-002). -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreeAll.Installer/FreeAll.Installer.csproj" />
+  </ItemGroup>
+
+</Project>

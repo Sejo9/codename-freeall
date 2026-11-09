@@ -7,6 +7,7 @@
     <Project Path="src/FreeAll.Duplicates/FreeAll.Duplicates.csproj" />
     <Project Path="src/FreeAll.Helper/FreeAll.Helper.csproj" />
     <Project Path="src/FreeAll.Infrastructure/FreeAll.Infrastructure.csproj" />
+    <Project Path="src/FreeAll.Installer/FreeAll.Installer.csproj" />
     <Project Path="src/FreeAll.Residue/FreeAll.Residue.csproj" />
     <Project Path="src/FreeAll.Scanner/FreeAll.Scanner.csproj" />
   </Folder>
@@ -17,7 +18,9 @@
     <Project Path="tests/FreeAll.Core.Tests/FreeAll.Core.Tests.csproj" />
     <Project Path="tests/FreeAll.Desktop.Tests/FreeAll.Desktop.Tests.csproj" />
     <Project Path="tests/FreeAll.Duplicates.Tests/FreeAll.Duplicates.Tests.csproj" />
+    <Project Path="tests/FreeAll.Installer.Tests/FreeAll.Installer.Tests.csproj" />
     <Project Path="tests/FreeAll.Integration.Tests/FreeAll.Integration.Tests.csproj" />
+    <Project Path="tests/FreeAll.Performance.Tests/FreeAll.Performance.Tests.csproj" />
     <Project Path="tests/FreeAll.Scanner.Tests/FreeAll.Scanner.Tests.csproj" />
     <Project Path="tests/FreeAll.Security.Tests/FreeAll.Security.Tests.csproj" />
   </Folder>

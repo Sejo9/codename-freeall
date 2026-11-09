@@ -17,6 +17,10 @@
     <views:DrivesPage />
   </DataTemplate>
 
+  <DataTemplate DataType="{x:Type vm:WindowsStorageViewModel}">
+    <views:WindowsStoragePage />
+  </DataTemplate>
+
   <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
     <views:SettingsPage />
   </DataTemplate>

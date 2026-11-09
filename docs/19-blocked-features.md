@@ -2,8 +2,15 @@
 
 ## Current blockers
 
-No product question is open. BLK-017 was resolved on 2026-11-03
-(DEC-029).
+Three product questions are open from Phase 7: BLK-021 (the update address
+and signing key), BLK-022 (privileged Windows cleanup) and BLK-023 (the
+Overview page for the first release). None of them stops the code; each
+has a recommendation below. BLK-017 was resolved on 2026-11-03 (DEC-029).
+
+The first release also needs people: an interactive install, upgrade and
+uninstall on a clean user account (`12-quality-assurance.md` §3.3), the
+compatibility checks on the other serviced Windows 11 releases
+(`24-compatibility-matrix.md`), and the open items below.
 
 Phase 4's exit criterion needs a person: the product owner's sign-off on
 the residue false-positive review (BLK-018, below).
@@ -22,9 +29,9 @@ F-007 in `17-feature-checklist.md`).
   ----------------------------------------------------------------------------------------------
   ID             Item           Why it matters        Required evidence           Status
   -------------- -------------- --------------------- --------------------------- --------------
-  BLK-001        ARM64 support  Native                Build, install, scan,       BLOCKED
-                                API/provider/helper   cleanup and helper tests on pending
-                                dependencies may      ARM64 Windows 11            validation
+  BLK-001        ARM64 support  Native                Build, install, scan,       BLOCKED;
+                                API/provider/helper   cleanup and helper tests on listed as
+                                dependencies may      ARM64 Windows 11            unsupported
                                 differ                                            
 
   BLK-002        SQLite         Native assets,        Provider comparison and     RESOLVED x64
@@ -32,8 +39,8 @@ F-007 in `17-feature-checklist.md`).
                                 concurrency and                                   
                                 licensing                                         
 
-  BLK-003        Installer      Per-user install,     Install/upgrade/uninstall   OPEN
-                 technology     signing, upgrades and prototype                   
+  BLK-003        Installer      Per-user install,     Install/upgrade/uninstall   RESOLVED
+                 technology     signing, upgrades and prototype                   (TD-049)                   
                                 helper packaging                                  
 
   BLK-004        WPF data       Large file/directory  Virtualized prototype with  RESOLVED
@@ -45,8 +52,8 @@ F-007 in `17-feature-checklist.md`).
   BLK-006        WPF Fluent     Theme completeness    .NET 10 theme audit and     IN PROGRESS
                  theme          and stability         fallback styles             
 
-  BLK-007        Windows        Must use supported    API-by-category security    OPEN
-                 cleanup APIs   mechanisms for        and compatibility review    
+  BLK-007        Windows        Must use supported    API-by-category security    RESOLVED for
+                 cleanup APIs   mechanisms for        and compatibility review    v1 (TD-048)    
                                 protected storage                                 
 
   BLK-008        Alternate data Scope and duplicate   Product decision before     DEFERRED
@@ -59,6 +66,109 @@ F-007 in `17-feature-checklist.md`).
                  false-positive could cost data       development-PC review; a    
                  sign-off                             review on another PC        
   ----------------------------------------------------------------------------------------------
+
+## Product-owner questions (Phase 7, 2026-11-08)
+
+### BLK-021 --- Update address and signing key
+
+-   **Status:** OPEN
+-   **Affected features:** F-036; PR-018, DEC-019, DEC-025
+-   **Question:** Where are updates published, and who holds the project's
+    update signing key?
+-   **Why clarification is required:** The address is contacted from users'
+    PCs (privacy, DEC-018), and whoever holds the private key can ship code
+    that every FreeAll installation will offer to run. Neither is the
+    development agent's choice.
+-   **Options:** (a) GitHub Releases of the public repository (DEC-027), with
+    the manifest at a fixed "latest" address; (b) a project web site over
+    HTTPS; (c) no update checks in the first release.
+-   **Recommendation:** (a), with the key made by
+    `tools/updates/New-UpdateKey.ps1` on an offline machine and kept, with a
+    backup, by the product owner. Set `FREEALL_UPDATE_MANIFEST_URL` and
+    `FREEALL_UPDATE_PUBLIC_KEY` as repository variables (both are public).
+-   **Security/data/UX impact:** Until answered, release builds can't check
+    for updates and don't ask the first-start question. Everything else is
+    built and tested (TD-050).
+-   **Decision owner:** Product owner.
+-   **Date opened:** 2026-11-08
+
+### BLK-022 --- Privileged Windows cleanup
+
+-   **Status:** OPEN (nothing to change for v1)
+-   **Affected features:** F-034; PR-011, TD-047
+-   **Question:** Should FreeAll itself run Windows' privileged cleanup (DISM
+    component cleanup, turning hibernation off) through the elevated helper,
+    or keep opening Windows' own tools (TD-048)?
+-   **Why clarification is required:** It adds commands to the helper, which
+    changes the privilege boundary (`15-ai-agent-rules.md` §5).
+-   **Options:** (a) keep opening Windows' tools; (b) add a fixed
+    `StartComponentCleanup` helper command with its own security review.
+-   **Recommendation:** (a) for v1. Disk Cleanup already offers Windows Update
+    Cleanup with its own elevation and preview, and component cleanup can
+    run for a long time and can't be undone.
+-   **Decision owner:** Product owner.
+-   **Date opened:** 2026-11-08
+
+### BLK-023 --- Overview page in the first release
+
+-   **Status:** OPEN
+-   **Affected features:** F-006; `07-ui-ux-design.md` §5
+-   **Question:** The Overview (dashboard) page is still a placeholder, and no
+    roadmap phase schedules it. Ship the first release with it as is, hide it,
+    or build it first?
+-   **Why clarification is required:** It changes the first page users see
+    and the release scope.
+-   **Options:** (a) build Overview before the first release; (b) release
+    with Drives as the first page and Overview hidden; (c) release as is.
+-   **Recommendation:** (a). It mostly reuses data other pages already have
+    (drives, latest scans, Windows Storage, the review queue).
+-   **Decision owner:** Product owner.
+-   **Date opened:** 2026-11-08
+
+## Validation evidence (Phase 7, 2026-11-08)
+
+### BLK-003 --- Installer technology: RESOLVED (TD-049)
+
+A project-owned Native AOT installer. Evidence: 42 tests in
+`FreeAll.Installer.Tests` (install, upgrade, repair, downgrade refused, a
+file in use, crash leftovers, data kept by default, data holding quarantine
+never removed, only listed files removed, crafted and damaged payloads, the
+real registry entry and shortcut under a test key, the real installer
+process) and the smoke test in `build.ps1`. On this PC the real 150 MB app
+packed into a 66 MB setup file in 31 s; a silent install of its 443 files
+took 3.5 s and the installed uninstaller 0.5 s. Still to do: an interactive
+run by a person on a clean account, and Authenticode signing (DEC-025).
+
+### BLK-007 --- Windows cleanup APIs: RESOLVED for v1 (TD-048)
+
+Read-only measurement plus documented Windows tools; no FreeAll code
+removes anything Windows manages. Running Windows' privileged cleanup from
+FreeAll is BLK-022.
+
+### BLK-006 --- WPF Fluent theme: IN PROGRESS
+
+Done in Phase 7: decorative glyphs hidden from UI Automation (finding 6),
+an automation audit of every page in the capture run (7 unnamed controls
+found and fixed), static markup tests, Text size support and regional
+formats (TD-051). Still to do by a person: Narrator, a real Windows contrast
+theme, and keyboard-only use of each page. Found by the 150 % captures:
+list-and-details pages crop the details pane when the effective width is
+small (large text on a non-maximised window); the panes need to stack.
+
+### BLK-009 --- Performance targets: IN PROGRESS (soak added)
+
+The long soak (`tools/Run-Soak.ps1`: 40 cycles over a 20,000-file tree, NVMe,
+Release build) passed. Handles and threads grow during the first cycles
+(thread-pool warm-up), then stay flat at about 612 and 30; managed memory
+stays at 1.2 MB after collection; the database stays at 11.4 MB under
+retention. Cancellation took effect about 0.1 s after Cancel. Still one
+machine and one disk type, so no target is set.
+
+### BLK-001 --- ARM64: listed as unsupported
+
+Release acceptance (`02-product-requirements.md` §6) allows ARM64 to be
+listed as unsupported, which `24-compatibility-matrix.md` and
+`25-release-notes.md` do.
 
 ## Validation evidence (Phase 6, 2026-11-04)
 
@@ -81,10 +191,10 @@ and fixed defects (`18-development-log.md`). This is the riskiest code in
 the product, so it deserves a reviewer who didn't write it, before any
 release.
 
-### BLK-007 --- Windows cleanup APIs: OPEN (unchanged)
+### BLK-007 --- Windows cleanup APIs: resolved in Phase 7 (TD-048)
 
-Phase 7. Nothing in Phase 6 touches Windows-managed locations: the policy
-blocks them.
+Nothing in Phase 6 touches Windows-managed locations: the policy blocks
+them.
 
 ## Validation evidence (Phase 5, 2026-11-04)
 

@@ -13,12 +13,13 @@ internal partial class MainWindow : Window
     private readonly ShellViewModel _shell;
     private readonly WindowMessageVolumeMonitor _volumeChanges;
 
-    public MainWindow(ShellViewModel shell, WindowMessageVolumeMonitor volumeChanges)
+    public MainWindow(ShellViewModel shell, WindowMessageVolumeMonitor volumeChanges, TextScaleService textScale)
     {
         _shell = shell;
         _volumeChanges = volumeChanges;
         DataContext = shell;
         InitializeComponent();
+        textScale.Attach(RootLayout);
         SizeChanged += OnSizeChanged;
     }
 

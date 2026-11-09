@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Per-user installer, upgrader and uninstaller (F-002, TD-049). No administrator rights, no machine-wide
+    writes, and it never touches the user's data unless the user chooses to remove it on uninstall.
+    Published with Native AOT as one small executable; the app is appended to it as a verified payload.
+    References no other FreeAll project.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>FreeAll.Installer</AssemblyName>
+    <RootNamespace>FreeAll.Installer</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Source-generated P/Invoke and COM (shell links, task dialogs). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <StackTraceSupport>false</StackTraceSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FreeAll.Installer.Tests" />
+  </ItemGroup>
+
+</Project>

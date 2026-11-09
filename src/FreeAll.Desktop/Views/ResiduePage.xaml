@@ -1,6 +1,7 @@
 <UserControl x:Class="FreeAll.Desktop.Views.ResiduePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:residue="clr-namespace:FreeAll.Desktop.ViewModels.Residue"
@@ -20,9 +21,9 @@
       <Button Margin="8,0,0,0" Command="{Binding ExportCommand}" Content="Export…" DockPanel.Dock="Right" />
       <ToggleButton Margin="8,0,0,0" Content="Installed applications" DockPanel.Dock="Right" IsChecked="{Binding ShowApplications}" ToolTip="The applications FreeAll found, and those it saw installed before" />
       <WrapPanel>
-        <Button Margin="0,0,8,0" Command="{Binding AnalyseCommand}" Style="{StaticResource Button.Accent}">
+        <Button AutomationProperties.Name="Look again" Margin="0,0,8,0" Command="{Binding AnalyseCommand}" Style="{StaticResource Button.Accent}">
           <StackPanel Orientation="Horizontal">
-            <TextBlock Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
+            <controls:Glyph Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
             <TextBlock Text="Look again" />
           </StackPanel>
         </Button>
@@ -35,7 +36,7 @@
     <StackPanel Grid.Row="1" Margin="0,0,0,12">
       <Border MaxWidth="1100" HorizontalAlignment="Left" Style="{StaticResource Banner.Warning}">
         <DockPanel>
-          <TextBlock Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" />
+          <controls:Glyph Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" />
           <TextBlock Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
             <Run FontWeight="SemiBold" Text="A leftover folder can still hold settings, documents or licences." />
             <Run Text="Confidence says how strongly the evidence points to a removed program; it never means a folder is safe to remove. Nothing is removed here: keep, ignore, or add folders to the review queue to decide later." />
@@ -141,7 +142,7 @@
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate DataType="{x:Type residue:ResidueRowViewModel}">
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                      <TextBlock Margin="0,0,6,0" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" Visibility="{Binding NeedsAttention, Converter={StaticResource BoolToVisibility}}" />
+                      <controls:Glyph Margin="0,0,6,0" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Color.Warning}" Style="{StaticResource Typography.Icon}" Text="&#xE7BA;" Visibility="{Binding NeedsAttention, Converter={StaticResource BoolToVisibility}}" />
                       <TextBlock VerticalAlignment="Center" Text="{Binding RiskText}" />
                     </StackPanel>
                   </DataTemplate>
@@ -188,10 +189,12 @@
                             <Setter Property="Text" Value="&#xE73E;" />
                             <Setter Property="Foreground" Value="{DynamicResource Color.TextSecondary}" />
                             <Setter Property="ToolTip" Value="Points to a leftover" />
+                            <Setter Property="AutomationProperties.Name" Value="Points to a leftover" />
                             <Style.Triggers>
                               <DataTrigger Binding="{Binding Supports}" Value="False">
                                 <Setter Property="Text" Value="&#xE946;" />
                                 <Setter Property="ToolTip" Value="Points the other way, or raises the risk" />
+                                <Setter Property="AutomationProperties.Name" Value="Points the other way, or raises the risk" />
                               </DataTrigger>
                             </Style.Triggers>
                           </Style>

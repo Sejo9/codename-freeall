@@ -127,3 +127,18 @@ internal sealed class WpfFolderPicker : IFolderPicker
         return (owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner)) == true ? dialog.FolderName : null;
     }
 }
+
+/// <summary>Closes FreeAll, for example so an update can replace it.</summary>
+internal interface IAppLifetime
+{
+    void Shutdown();
+}
+
+internal sealed class WpfAppLifetime : IAppLifetime
+{
+    private readonly System.Windows.Application _application;
+
+    public WpfAppLifetime(System.Windows.Application application) => _application = application;
+
+    public void Shutdown() => _application.Dispatcher.BeginInvoke(() => _application.Shutdown(0));
+}

@@ -27,8 +27,10 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
         ILogger<ShellViewModel> logger,
         Func<SearchViewModel>? search = null,
         Func<ReviewQueueViewModel>? review = null,
-        Func<CleanupReviewViewModel>? cleanup = null)
+        Func<CleanupReviewViewModel>? cleanup = null,
+        UpdatesViewModel? updates = null)
     {
+        Updates = updates;
         ArgumentOutOfRangeException.ThrowIfZero(navigationItems.Count);
 
         NavigationItems = navigationItems;
@@ -52,6 +54,9 @@ internal sealed partial class ShellViewModel : ObservableObject, INavigator
 
     [ObservableProperty]
     public partial bool IsNavigationExpanded { get; set; }
+
+    /// <summary>Update checks, for the first-start question in the header. Null in tests that don't need it.</summary>
+    public UpdatesViewModel? Updates { get; }
 
     /// <summary>Scan state shown in the status region.</summary>
     public ScanActivityViewModel ScanActivity { get; }

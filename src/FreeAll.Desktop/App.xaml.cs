@@ -28,6 +28,7 @@ internal partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        TextScaleService.UseCurrentCultureForFormatting();
 
         try
         {
@@ -104,6 +105,9 @@ internal partial class App : System.Windows.Application
         {
             // The header shows how many items are waiting for review before the page is opened.
             _ = _services.GetRequiredService<ViewModels.Index.ReviewQueueViewModel>().InitializeAsync();
+
+            // Asks once whether to check for updates; checks only if the user said yes and a check is due (PR-018).
+            _ = _services.GetRequiredService<UpdatesViewModel>().InitializeAsync();
         }
 
         var window = _services.GetRequiredService<MainWindow>();

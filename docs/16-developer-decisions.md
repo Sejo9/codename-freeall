@@ -218,11 +218,13 @@ validations.
 
 These are not product-scope decisions unless otherwise noted: - ARM64
 native dependency and helper validation. - SQLite provider and native
-packaging selection. - Installer technology and signing pipeline. - WPF
-data-grid/tree control selection. - Charting library and treemap
-rendering approach. - Built-in WPF Fluent theme suitability and fallback
-styling. - Exact Windows cleanup APIs for each supported cleanup
-category. - Alternate data stream policy beyond the v1 baseline. -
+packaging selection (resolved for x64, TD-013). - Installer technology
+(resolved, TD-049) and signing pipeline (waits for a certificate,
+DEC-025). - WPF data-grid/tree control selection (resolved, TD-017). -
+Charting library and treemap rendering approach (resolved, TD-031). -
+Built-in WPF Fluent theme suitability and fallback styling. - Exact
+Windows cleanup APIs for each supported cleanup category (resolved for
+v1, TD-048). - Alternate data stream policy beyond the v1 baseline. -
 Quantitative performance targets after benchmark phase.
 
 ## Technical decisions
@@ -1170,6 +1172,172 @@ Measured on Windows 11 with `IFileOperation` before this was designed
     and the rest are left alone (fail closed).
 -   **Not included:** elevated scanning (DEC-023), which needs
     `EnumerateDirectory`. Nothing in cleanup depends on it.
+
+### TD-048 --- Windows storage: measure, explain, open Windows' tools (2026-11-08)
+
+Resolves BLK-007 for v1 within PR-011 and `04-functional-specification.md` §9.
+
+-   **What FreeAll does itself: nothing destructive.** The Windows Storage page
+    measures fifteen areas Windows manages (`WindowsStorageAreas`, version 1:
+    component store, update downloads, Delivery Optimization, previous
+    installation, Windows temp, memory dumps, error reports, thumbnail cache,
+    Recycle Bin, page and swap files, hibernation file, restore points,
+    installer cache, driver store, Store apps) from the stored scan of the
+    Windows drive, and explains what each is and the supported way to make it
+    smaller. Nothing there can be queued for removal.
+-   **API review by category.** Recycle Bin size: `SHQueryRecycleBinW`
+    (documented, standard user, read-only; only a plain `X:\` root is ever
+    passed). Everything that removes data is left to Windows' own tools, which
+    show their own choices and confirmation: Settings pages through documented
+    `ms-settings:` URIs (`storagesense`, `storagepolicies`,
+    `storagerecommendations`, `delivery-optimization`, `appsfeatures`,
+    `optionalfeatures`, `recovery`, checked against Microsoft's "Launch Windows
+    Settings" reference on 2026-11-08), Disk Cleanup (`cleanmgr.exe /d X:`,
+    whose "Clean up system files" elevates itself), System Protection and
+    Performance Options (`SystemProperties*.exe`, which ask for approval
+    themselves), and the Recycle Bin folder. Programs are started by full path
+    from System32 or the Windows folder, with fixed arguments; the only value
+    from outside the list is the drive letter, which must be A to Z
+    (`WindowsTools`). The launcher refuses any description that isn't the
+    allowlist entry itself.
+-   **Not done, deliberately:** running DISM component cleanup or `powercfg`
+    through the helper (a new privileged command: a privilege-boundary change
+    that needs the product owner, BLK-022), calling Disk Cleanup handlers
+    (`IEmptyVolumeCache`) directly (documented for writing handlers, not for
+    driving them, and several need elevation), and emptying the Recycle Bin
+    from FreeAll (permanent deletion outside FreeAll's own audited cleanup).
+-   **Honest sizes:** a path the scan couldn't read is "Not readable", and a
+    path missing under a folder the scan couldn't list is "Not readable" too,
+    never "Not on this drive". The component store counts hard links once
+    (TD-026), so it can differ from Windows' figure; the page says so.
+
+### TD-049 --- Installer: project-owned per-user installer (2026-11-08)
+
+Resolves BLK-003. Requirements: `13-deployment-release.md` §2.
+
+-   **Choice.** A small FreeAll-owned installer (`src/FreeAll.Installer`),
+    compiled with Native AOT to one 2.3 MB executable, with the published app
+    appended as a hashed zip. Considered: **MSIX** (needs a trusted signature
+    to install, which DEC-025 doesn't provide, and redirects AppData);
+    **WiX** (MS-RL, and **Inno Setup** (its own licence): neither is a licence
+    family DEC-024 allows); **Velopack** (MIT, but its uninstaller deletes its
+    whole folder, its update feed isn't signed, and it adds a native updater to
+    the app). The installer references no FreeAll project and has its own
+    architecture rules (asInvoker, no machine-wide location in its source).
+-   **Layout.** `%LocalAppData%\Programs\FreeAll` (program),
+    `%LocalAppData%\FreeAll` (data, never touched by installing or
+    upgrading), Start menu shortcut, and an uninstall entry under
+    `HKCU\…\Uninstall\FreeAll`. No administrator rights; nothing outside the
+    user's profile and `HKEY_CURRENT_USER`.
+-   **Setup file.** `[installer][zip][trailer: stub length, zip length,
+    SHA-256 of the zip, magic]`. The trailer hash catches a damaged or
+    truncated download before anything is extracted; the zip carries
+    `FreeAll.install.json` with every file's size and SHA-256. Authenticity
+    comes from the update signature (TD-050) and, later, Authenticode
+    (DEC-025).
+-   **Install and upgrade.** Extract to a sibling staging folder, checking each
+    file's size and hash and refusing unlisted entries and unsafe paths
+    (rooted, `..`, streams, device names); then rename the installed folder
+    aside, move the new one in, and only then register and delete the old
+    one. Any failure before the swap leaves the installed version untouched;
+    a failed swap puts it back. A newer installed version is never replaced
+    by an older one (the older database code would refuse the newer schema,
+    TD-013). A running FreeAll or helper from that folder stops the
+    installation ("close it and retry"); with `/update` the installer waits
+    up to 90 seconds for the app to close, installs without asking again,
+    and starts the new version.
+-   **Uninstall.** Confirms, then asks "Keep your FreeAll data?" with Yes
+    (keep) as the default. Only files the manifest lists are removed;
+    anything else in the folder stays. Data is removed only on request, never
+    if it contains a `FreeAll Quarantine` folder, and quarantine folders on
+    drives are never touched. The uninstaller moves itself to `%TEMP%` first,
+    because a running program can be renamed but not deleted; that copy stays
+    there.
+-   **Testing switches** (`/root`, `/start-menu`, `/data`, `/registry-key`,
+    `/log`, `/silent`) redirect every location; a redirected registry key must
+    be under `HKCU\Software\FreeAll.Tests\`. Tests never touch the real
+    locations.
+-   **Build.** Native AOT needs the MSVC linker; `build.ps1` puts
+    `vswhere.exe` on `PATH` for it. GitHub's Windows runners have both.
+
+### TD-050 --- Update checks and signed manifests (2026-11-08)
+
+Implements PR-018, DEC-019 and `08-security-privacy.md` §9 within DEC-025.
+
+-   **Consent.** Asked once, in a banner at first start, only in builds that
+    have an update source. Choices: check weekly when FreeAll starts, or
+    never. Until answered nothing is fetched. "Check now" in Settings works
+    either way. Downloading and installing are separate, explicit actions;
+    installing is confirmed again.
+-   **Trust.** A project-owned ECDSA P-256 key (no certificate needed, DEC-025).
+    Its public key and the manifest address are fixed into release builds by
+    `build.ps1` (`FREEALL_UPDATE_MANIFEST_URL`, `FREEALL_UPDATE_PUBLIC_KEY`);
+    other builds can't check. The signature (IEEE P1363, base64, in
+    `manifest.json.sig`) covers `freeall-update-manifest-v1\n` plus the exact
+    manifest bytes, and is verified before the JSON is parsed. Parsing is then
+    strict: every field required, no unknown or repeated field, HTTPS package
+    address without user info or port, size up to 1 GB, lowercase SHA-256.
+-   **Replay and freeze.** Each manifest has a sequence number; FreeAll keeps
+    the highest it accepted and refuses lower ones, and refuses everything if
+    it can't read that record. Manifests expire (the tooling defaults to 90
+    days), so an old one can't hide newer releases indefinitely. A release
+    older than the running one is "up to date", never offered.
+-   **Transport and privacy.** HTTPS only, including the final address after
+    redirects; 30-second timeout; 64 KB manifest and 1 KB signature limits.
+    Requests are plain GETs with a `FreeAll/<version>` user agent and nothing
+    else about the PC.
+-   **Download and start.** The installer is streamed to
+    `%LocalAppData%\FreeAll\updates` (protected folder, TD-015), hashed while
+    it arrives, stopped if it exceeds the signed size, and discarded on any
+    mismatch. Before starting, it is opened without write or delete sharing,
+    hashed again, and started from that path with `/update`; FreeAll then
+    closes. Older downloads FreeAll made are removed.
+-   **Tooling.** `tools/updates/New-UpdateKey.ps1` (refuses to write the
+    private key inside the repository, encrypts it with a password) and
+    `tools/updates/New-UpdateManifest.ps1`. A test runs both and verifies the
+    result with the app's verifier.
+
+### TD-051 --- Accessibility and localization readiness (2026-11-08)
+
+Part of F-038 and BLK-006.
+
+-   **Decorative glyphs.** `Glyph` (a `TextBlock` whose automation peer is in
+    neither the control nor the content view) replaces every unnamed icon.
+    Icons that carry meaning keep a `TextBlock` with an automation name.
+    Architecture tests fail on an unnamed icon `TextBlock` and on a button
+    without plain-text content or an automation name.
+-   **Automation audit.** The Debug capture walks each page's UI Automation
+    tree and lists focusable controls without a name and any name containing
+    a private-use (icon) character (`accessibility.txt`). The first run found
+    seven unnamed controls (buttons with an icon and a label, which WPF
+    doesn't name from the label); all are fixed.
+-   **Text size.** WPF ignores Windows' Accessibility › Text size, so FreeAll
+    reads `TextScaleFactor` and scales the window content (100 % to 225 %),
+    live. Text and layout grow together, so nothing is clipped; captures at
+    150 % are part of the review.
+-   **Regional formats.** Bindings format with the user's culture instead of
+    WPF's en-US default. Code formatting passes a culture explicitly (CA1305
+    is enforced).
+-   **Localization readiness, not localization.** v1 is English
+    (`NeutralLanguage` en). User-facing text is in XAML and in the
+    `Application/Formatting/*Text` classes, built from whole sentences rather
+    than fragments, and layouts wrap rather than truncate. Moving the strings
+    to resource files waits for a decision on which languages to ship.
+
+### TD-052 --- Performance, soak and release files (2026-11-08)
+
+-   `tests/FreeAll.Performance.Tests`: a short soak on every build (six cycles
+    of full scan, update after changes, search and retention on a real NTFS
+    tree), a cancellation-latency check, and a long soak run on request
+    (`tools/Run-Soak.ps1`, 40 cycles of 20,000 files by default). They watch
+    managed memory, handles, threads and database size, comparing the last
+    cycle with the third; thresholds catch growth, they are not performance
+    promises (`12-quality-assurance.md` §6). Results go to `artifacts/perf`.
+-   `build.ps1 -Publish` now also builds the setup file, installs and
+    uninstalls it silently on throwaway locations (the installed uninstaller
+    included), and writes `SHA256SUMS.txt` and an SPDX 2.3 SBOM generated
+    from the lock files (`tools/New-Sbom.ps1`) to `artifacts/release`. CI
+    uploads that folder.
 
 ## Decision change procedure
 

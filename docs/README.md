@@ -38,6 +38,8 @@ agents.
 21. [Requirements Traceability Matrix](21-requirements-traceability.md)
 22. [Operations and Troubleshooting Runbook](22-operations-runbook.md)
 23. [Dependency Register](23-dependency-register.md)
+24. [Windows Compatibility Matrix](24-compatibility-matrix.md)
+25. [Release Notes and Known Limitations](25-release-notes.md)
 
 ## Canonical working documents
 

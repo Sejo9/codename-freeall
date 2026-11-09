@@ -16,7 +16,17 @@
 Proposed per-user locations: - Application:
 `%LocalAppData%\\Programs\\FreeAll` - Data: `%LocalAppData%\\FreeAll`
 
-The final installer technology must be selected after testing: -
+Implemented (TD-049): a project-owned per-user installer,
+`FreeAll-Setup-<version>-x64.exe`, which installs to
+`%LocalAppData%\Programs\FreeAll`, registers under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\FreeAll`, adds a
+Start menu shortcut, and keeps `%LocalAppData%\FreeAll` unless the user asks
+to delete it when uninstalling. Silent use: `/silent` (install), `/uninstall
+/silent` (keeps data), `/uninstall /silent /remove-data`. Exit codes: 0 done,
+1 failed, 2 cancelled, 3 refused (older than installed), 4 FreeAll still
+running.
+
+The requirements it meets: -
 Per-user install without admin rights. - Signed installer and
 binaries. - Clean upgrade and rollback behaviour. - No writes to
 machine-wide protected locations during ordinary install. - Preserve
@@ -46,6 +56,10 @@ Support repair or reinstall without corrupting the database.
 
 ## 5. Update policy
 
+Implemented (TD-050). Release builds need `FREEALL_UPDATE_MANIFEST_URL` and
+`FREEALL_UPDATE_PUBLIC_KEY` (BLK-021); without them a build can't check and
+doesn't ask.
+
 -   Ask user during initial setup whether to check for updates.
 -   No telemetry.
 -   Official HTTPS update endpoint.
@@ -57,6 +71,8 @@ Support repair or reinstall without corrupting the database.
 -   Re-check .NET 10 servicing and security status for each release.
 
 ## 6. Windows compatibility policy
+
+The matrix itself is `24-compatibility-matrix.md`.
 
 Maintain a matrix with: - Windows 11 edition. - Release/version. -
 Microsoft's servicing end date. - FreeAll build tested. - x64/ARM64
@@ -82,6 +98,12 @@ and lifecycle basis.
 10. Generate SBOM and checksums.
 11. Produce release notes and known issues.
 12. Publish to official distribution channel.
+
+`build.ps1 -Configuration Release -Locked -Publish` does steps 1 to 7 and 10
+(installer smoke test on throwaway locations; checksums and an SPDX SBOM in
+`artifacts/release`). Steps 8 and 9 wait for a certificate (DEC-025); steps
+11 and 12 are `25-release-notes.md` and the runbook (`22-operations-runbook.md`
+§7).
 
 ## 8. Backup and restore
 

@@ -1,0 +1,224 @@
+<UserControl x:Class="FreeAll.Desktop.Views.WindowsStoragePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FreeAll.Desktop.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FreeAll.Desktop.ViewModels"
+             xmlns:index="clr-namespace:FreeAll.Desktop.ViewModels.Index"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:WindowsStorageViewModel}"
+             x:ClassModifier="internal">
+  <Grid Margin="{StaticResource Thickness.Page}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,12" Orientation="Horizontal">
+      <Button AutomationProperties.Name="Look again" Command="{Binding RefreshCommand}" Style="{StaticResource Button.Accent}">
+        <StackPanel Orientation="Horizontal">
+          <controls:Glyph Margin="0,0,8,0" FontSize="14" Foreground="{DynamicResource Color.OnAccent}" Style="{StaticResource Typography.Icon}" Text="&#xE72C;" />
+          <TextBlock Text="Look again" />
+        </StackPanel>
+      </Button>
+      <!-- Every Windows storage tool, in a menu, so the list of areas keeps the space. -->
+      <Button x:Name="ToolsButton"
+              Margin="8,0,0,0"
+              AutomationProperties.HelpText="Opens a menu of Windows' own storage tools. Nothing is removed until you choose it in Windows."
+              AutomationProperties.Name="Windows storage tools"
+              Click="OnToolsClick"
+              ToolTip="Windows' own storage tools. Each opens a Windows screen; nothing is removed until you choose it there.">
+        <StackPanel Orientation="Horizontal">
+          <controls:Glyph Margin="0,0,8,0" FontSize="14" Style="{StaticResource Typography.Icon}" Text="&#xE90F;" />
+          <TextBlock Text="Windows tools" />
+          <controls:Glyph Margin="8,2,0,0" FontSize="10" Style="{StaticResource Typography.Icon}" Text="&#xE70D;" />
+        </StackPanel>
+        <Button.ContextMenu>
+          <ContextMenu ItemsSource="{Binding Tools}">
+            <ContextMenu.ItemContainerStyle>
+              <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                <Setter Property="Header" Value="{Binding Title}" />
+                <Setter Property="Command" Value="{Binding Open}" />
+                <Setter Property="CommandParameter" Value="{Binding Info}" />
+                <Setter Property="ToolTip" Value="{Binding Description}" />
+                <Setter Property="AutomationProperties.HelpText" Value="{Binding Description}" />
+              </Style>
+            </ContextMenu.ItemContainerStyle>
+          </ContextMenu>
+        </Button.ContextMenu>
+      </Button>
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+      <Border MaxWidth="1100" HorizontalAlignment="Left" Style="{StaticResource Banner.Info}">
+        <DockPanel>
+          <controls:Glyph Margin="0,2,10,0" VerticalAlignment="Top" DockPanel.Dock="Left" Foreground="{DynamicResource Color.Info}" Style="{StaticResource Typography.Icon}" Text="&#xE946;" />
+          <TextBlock Style="{StaticResource Typography.Body}" TextWrapping="Wrap">
+            Windows manages these areas itself. Deleting files from them by hand can stop Windows from updating, repairing programs or starting, so FreeAll never offers to. Each button opens Windows' own tool: you choose there, and Windows asks before it removes anything.
+          </TextBlock>
+        </DockPanel>
+      </Border>
+      <TextBlock Margin="0,8,0,0" Style="{StaticResource Typography.Caption}" Text="{Binding SummaryText}" TextWrapping="Wrap" Visibility="{Binding SummaryText, Converter={StaticResource NullToVisibility}}" />
+    </StackPanel>
+
+    <Border Grid.Row="2"
+            MaxWidth="560"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Card}"
+            Visibility="{Binding HasScan, Converter={StaticResource InverseBoolToVisibility}}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Scan the Windows drive first" />
+        <TextBlock Margin="0,4,0,12" Style="{StaticResource Typography.Body}" Text="Sizes come from the scan of the drive Windows is on (usually C:). Scan it from the Drives page, then come back. Windows' own tools are available without a scan:" TextWrapping="Wrap" />
+        <ItemsControl Focusable="False" ItemsSource="{Binding Tools}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:WindowsToolViewModel}">
+              <Button Margin="0,0,8,8" AutomationProperties.HelpText="{Binding Description}" Command="{Binding Open}" CommandParameter="{Binding Info}" Content="{Binding Title}" ToolTip="{Binding Description}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="2" Visibility="{Binding HasScan, Converter={StaticResource BoolToVisibility}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="3*" MinWidth="420" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="2*" MinWidth="360" />
+      </Grid.ColumnDefinitions>
+
+      <Grid Grid.Column="0">
+        <Border Padding="0" Style="{StaticResource Card}">
+          <Grid>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <ProgressBar AutomationProperties.Name="Measuring Windows storage" IsIndeterminate="True" Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Loading}" />
+            <DataGrid Grid.Row="1"
+                      AutomationProperties.Name="Areas Windows manages"
+                      CanUserSortColumns="False"
+                      ItemsSource="{Binding Areas}"
+                      SelectedItem="{Binding SelectedArea}"
+                      AutoGenerateColumns="False"
+                      BorderThickness="0"
+                      CanUserResizeColumns="True"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Single">
+              <DataGrid.Columns>
+                <DataGridTextColumn Width="*" MinWidth="180" Binding="{Binding Title}" ElementStyle="{StaticResource Cell.Secondary}" Header="Area" />
+                <DataGridTextColumn Width="130" MinWidth="130" Binding="{Binding SizeText}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+                <DataGridTextColumn Width="200" MinWidth="200" Binding="{Binding ReclaimText}" ElementStyle="{StaticResource Cell.Secondary}" Header="How it shrinks" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+        </Border>
+
+      </Grid>
+
+      <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" AutomationProperties.Name="Resize details pane" />
+
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Style="{StaticResource Card}">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource Typography.Title}" Text="{Binding SelectedArea.Title}" />
+              <ItemsControl Focusable="False" ItemsSource="{Binding SelectedArea.Details}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type index:DetailField}">
+                    <StackPanel>
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+                      <TextBlock Style="{StaticResource Typography.Body}" Text="{Binding Value}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Windows tools for it" Visibility="{Binding SelectedArea.HasTools, Converter={StaticResource BoolToVisibility}}" />
+              <ItemsControl Focusable="False" ItemsSource="{Binding SelectedArea.Tools}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:WindowsToolViewModel}">
+                    <Button Margin="0,4,8,0" AutomationProperties.HelpText="{Binding Description}" Command="{Binding Open}" CommandParameter="{Binding Info}" Content="{Binding Title}" ToolTip="{Binding Description}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Style="{StaticResource FieldLabel}" Text="Where it is" />
+              <DataGrid MaxHeight="180"
+                        AutomationProperties.Name="Folders and files of this area"
+                        CanUserSortColumns="False"
+                        ItemsSource="{Binding SelectedArea.Parts}"
+                        SelectedItem="{Binding SelectedPart}"
+                        AutoGenerateColumns="False"
+                        BorderThickness="0"
+                        GridLinesVisibility="None"
+                        HeadersVisibility="Column"
+                        IsReadOnly="True"
+                        SelectionMode="Single">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Width="*" MinWidth="140" Binding="{Binding FullPath}" ElementStyle="{StaticResource Cell.Secondary}" Header="Path" />
+                  <DataGridTextColumn Width="120" MinWidth="120" Binding="{Binding SizeText}" ElementStyle="{StaticResource Cell.Numeric}" Header="On disk" />
+                </DataGrid.Columns>
+              </DataGrid>
+              <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding ShowInExplorerCommand}" Content="Show in Storage Explorer" ToolTip="Browse the selected folder as scanned. Nothing can be removed from there either." />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <Border Grid.Row="1" Margin="0,12,0,0" Padding="0" Style="{StaticResource Card}">
+          <StackPanel>
+            <TextBlock Margin="16,12,16,0" AutomationProperties.HeadingLevel="Level2" Style="{StaticResource Typography.Title}" Text="Recycle Bin on each drive" />
+            <TextBlock Margin="16,2,16,6" Style="{StaticResource Typography.Caption}" Text="Windows' own figures for your account, read now." />
+            <DataGrid AutomationProperties.Name="Recycle Bin size on each drive"
+                      CanUserSortColumns="False"
+                      ItemsSource="{Binding RecycleBins}"
+                      AutoGenerateColumns="False"
+                      BorderThickness="0"
+                      GridLinesVisibility="None"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Single">
+              <DataGrid.Columns>
+                <DataGridTextColumn Width="70" MinWidth="70" Binding="{Binding Drive}" ElementStyle="{StaticResource Cell.Secondary}" Header="Drive" />
+                <DataGridTextColumn Width="110" MinWidth="110" Binding="{Binding SizeText}" ElementStyle="{StaticResource Cell.Numeric}" Header="Size" />
+                <DataGridTextColumn Width="*" MinWidth="100" Binding="{Binding ItemsText}" ElementStyle="{StaticResource Cell.Secondary}" Header="Items" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2"
+            MaxWidth="640"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Top"
+            Style="{StaticResource Banner.Warning}"
+            Visibility="{Binding State, Converter={StaticResource EqualsToVisibility}, ConverterParameter=Error}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Typography.Title}" Text="Windows storage couldn't be measured" />
+        <TextBlock Margin="0,4,0,8" Style="{StaticResource Typography.Body}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+        <Button HorizontalAlignment="Left" Command="{Binding RefreshCommand}" Content="Try again" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

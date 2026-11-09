@@ -45,7 +45,20 @@
 
   Local privacy     PRD, Security     Infrastructure    Network/privacy audit
 
-  Updates           PRD, Deployment   Infrastructure    Signature tests
+  Updates           PRD, Deployment   Infrastructure    Signature, replay and
+                                      (TD-050)          download tests
+
+  Installer         Deployment        FreeAll.Installer Install/upgrade/uninstall
+                                      (TD-049)          tests, build smoke test
+
+  Windows storage   PRD-011, Spec §9  Application,      Allowlist and area tests
+                                      Desktop (TD-048)
+
+  Windows 11        Deployment §6     Release process   24-compatibility-matrix
+  matrix
+
+  Performance and   QA §6             Performance       Soak and cancellation
+  soak                                tests (TD-052)    tests
 
   Accessibility     UI/UX             Desktop           Accessibility review
 

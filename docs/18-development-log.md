@@ -784,3 +784,130 @@ destinations shown as volume GUID paths.
 
 Phase 7: Windows storage, installer and release hardening. Before that:
 commit, push, and arrange the independent review.
+
+## 2026-11-08 --- Phase 7: Windows storage, installer and release hardening
+
+### Delivered
+
+-   **Windows Storage page** (F-034, TD-048): fifteen areas Windows manages,
+    measured from the scan of the Windows drive, each with what it is, the
+    supported way to reduce it and the Windows tool for it. Windows' own
+    Recycle Bin figures for every drive. Tools open from a fixed allowlist of
+    documented Settings pages and Windows programs; FreeAll removes nothing
+    there. BLK-007 resolved for v1.
+-   **Installer** (F-002, TD-049): a project-owned per-user installer compiled
+    with Native AOT (2.3 MB) with the app appended as a verified payload.
+    Install, upgrade with a way back, repair, refusal to downgrade, an
+    uninstaller that asks about data and removes only what it installed.
+    BLK-003 resolved.
+-   **Update checks** (F-036, TD-050): asked once at first start, a signed
+    manifest (ECDSA P-256, project-owned key), strict parsing, replay and
+    expiry protection, HTTPS only, a verified download and a second check
+    under a locked handle before the installer starts. Release scripts for
+    the key and manifests. Waiting on BLK-021 for the real address and key.
+-   **Accessibility and localization readiness** (F-038, TD-051): decorative
+    glyphs hidden from screen readers, an automation audit of every page in
+    the capture run, static markup tests, Windows Text size followed live,
+    regional formats in bindings.
+-   **Compatibility matrix** (F-003): `24-compatibility-matrix.md` with
+    Microsoft's servicing dates and the first tested row;
+    `tools/Test-Compatibility.ps1`.
+-   **Performance and soak** (TD-052): `FreeAll.Performance.Tests` (short soak
+    and cancellation latency on every build, long soak on request).
+-   **Release pipeline** (TD-052): setup file, installer smoke test, SHA-256
+    checksums and an SPDX SBOM in `artifacts/release`; CI uploads them.
+    `25-release-notes.md` with known limitations and the release gates.
+
+### Measurements (development PC: Windows 11 Pro 26H2, NVMe)
+
+-   **Windows Storage on C:** (scan of 964,541 files): component store
+    11.9 GB with hard links counted once, Windows folder at least 20.5 GB,
+    page and swap files 11.0 GB, hibernation file 6.34 GB, installer cache
+    1.27 GB, update downloads 223 MB, Recycle Bin 418 MB (Windows' figure).
+    Restore points, Windows temp, memory dumps and Delivery Optimization:
+    not readable as a standard user, and shown that way.
+-   **Installer:** the published app (443 files, 150 MB) packed into a 66 MB
+    setup file in 31 s; silent install 3.5 s; the installed uninstaller
+    0.5 s, including moving itself out of the folder.
+-   **Long soak** (40 cycles: full scan of 20,000 files, five changes and a
+    renamed folder, update, search, retention; Release build): full scans
+    0.4 to 1.0 s, updates 0.3 to 0.6 s (6 or 7 folders listed again), search
+    33 to 81 ms. Handles 463 → 612 and threads 21 → 30 during the first
+    cycles (thread-pool warm-up), then flat to cycle 40; managed memory
+    1.1 → 1.2 MB after collection; database 11.1 → 11.4 MB. Peak working set
+    109 MB.
+-   **Cancellation:** the run ended 109 ms after Cancel, with a partial
+    session saved.
+-   **C: scan in the capture run:** 169 s, 5,695 files/s, peak working set
+    423 MB, UI idle delay at most 23 ms, as in earlier phases.
+
+### Tests
+
+`build.ps1 -Configuration Release -Locked -Publish`: 0 warnings, 0 errors;
+1,043 tests, 1,040 passed, 3 skipped (the two symbolic-link tests, which
+need Developer Mode or elevation, and the explicit long soak, run separately
+with `tools/Run-Soak.ps1` and passed); no vulnerable packages; helper,
+desktop and installer published; setup file built and installed and
+uninstalled by the smoke test; SBOM (20 packages) and checksums written;
+signing skipped (DEC-025). New: 43 in `FreeAll.Installer.Tests`, 57 update
+and Recycle Bin tests in `FreeAll.Integration.Tests`, 14 in
+`Phase7ViewModelTests`, 3 in `FreeAll.Performance.Tests`, and installer and
+accessibility rules in `FreeAll.Architecture.Tests`.
+
+Tests and smoke runs never used the real install locations: every location
+was redirected, and registry entries were written only under
+`HKCU\Software\FreeAll.Tests\` and removed.
+
+### Defects found and fixed during Phase 7
+
+-   The setup file's zip was written after the installer stub in the same
+    stream, so its internal offsets counted from the start of the file and it
+    couldn't be read back (found by the installer tests). The zip is now
+    built on its own and appended.
+-   An error in a scripted run (`/pack`, `/silent`) showed a dialog and waited
+    for a person (found in the first manual run). Scripted runs now report on
+    standard error and exit.
+-   With the install folder on E: and `%TEMP%` on C:, the uninstaller
+    "moved" itself by copying, and Windows left the original in the folder,
+    so the folder stayed (found by the `build.ps1` smoke test, whose folders
+    are on E:). It now moves only within the same drive and checks the
+    original is gone.
+-   `build.ps1` started the installer with `Start-Process`, which doesn't
+    quote arguments; the repository path contains a space. Arguments now go
+    through `ArgumentList`.
+-   Seven controls had no accessible name (found by the new automation
+    audit): buttons with an icon and a label, which WPF doesn't name from the
+    label, and two lists. The static test had assumed the label was enough;
+    it now requires a name.
+-   An area under a folder the scan couldn't list showed "Not on this drive"
+    (Delivery Optimization). It now shows "Not readable".
+-   The Windows tools card left room for six areas; the tools moved into a
+    menu button and all areas fit.
+-   The capture tool cut 150 % screenshots to the untransformed size.
+
+### Open
+
+-   **Product owner:** BLK-021 (update address and key), BLK-022 (privileged
+    Windows cleanup; recommendation: keep opening Windows' tools), BLK-023
+    (the Overview page is still a placeholder).
+-   **People:** an interactive install, upgrade and uninstall on a clean
+    account (`12-quality-assurance.md` §3.3); the other serviced Windows 11
+    releases (`24-compatibility-matrix.md`); pressing each Windows tool
+    button; Narrator, high contrast and keyboard-only review (BLK-006); the
+    elevated helper through UAC (BLK-019); an independent security review
+    (BLK-020), which should now also cover the installer and the update
+    verification.
+-   At 150 % text on a window that isn't maximised, list-and-details pages
+    crop their details pane; the panes should stack on narrow windows.
+-   The uninstaller leaves a 2 MB copy of itself in `%TEMP%`.
+-   Code signing (DEC-025): SmartScreen and "Unknown publisher" remain.
+-   Carried over: BLK-018 (residue sign-off), manual F-007 tests, benchmarks
+    on other storage types (BLK-009), GitHub push and the first CI run.
+
+### Next
+
+The release can't ship until the gates in `25-release-notes.md` close. Most
+are now people's tasks; the product-owner answers (BLK-021, BLK-023) decide
+the remaining build work. Recommended order: push to GitHub and get a green
+CI run; the independent security review; answer BLK-021 and BLK-023; the
+manual installer, helper and Narrator passes on a clean test PC.

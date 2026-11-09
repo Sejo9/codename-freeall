@@ -124,6 +124,41 @@ builds refuse to start the helper. Record the result and date in
 2.  Start FreeAll. Expected: Activity shows the operation as Interrupted
     and the item as needing a check; the original is intact.
 
+### 3.3 Manual installer and update tests (F-002, F-036)
+
+Use a test user account or a virtual machine: these use the real install
+locations. Record the result and date in `17-feature-checklist.md` and in
+`24-compatibility-matrix.md`.
+
+**A. Install, upgrade, uninstall**
+
+1.  As a standard user, run `FreeAll-Setup-<version>-x64.exe`. Expected:
+    SmartScreen warns (unsigned, DEC-025); no UAC prompt; the setup asks to
+    install for this account only and names both folders.
+2.  Open FreeAll from the Start menu. Scan a small folder.
+3.  Run the setup of a newer build. Expected: "Update FreeAll a to b?"; the
+    scan history is still there afterwards.
+4.  While FreeAll is open, run setup again. Expected: "FreeAll is running",
+    Retry and Cancel; nothing changed when cancelled.
+5.  Run an older setup. Expected: refused, nothing changed.
+6.  Uninstall from Settings › Apps. Expected: a confirmation, then "Keep your
+    FreeAll data?" with Yes first. Choose Yes: the program folder, shortcut
+    and entry are gone; `%LocalAppData%\FreeAll` remains. Reinstall, then
+    uninstall choosing No: the data folder is gone.
+
+**B. Update**
+
+Needs a test update address and key (BLK-021); a build made with them:
+
+1.  First start: the update question appears. Choose "Don't check": nothing
+    is fetched (check with a network monitor).
+2.  In Settings choose weekly, then Check now. Expected: the release is
+    offered with its notes; Download, then Install update asks again;
+    FreeAll closes, the installer updates it without asking again, and the
+    new version starts.
+3.  Publish a manifest with a wrong signature, then one with a lower
+    sequence. Expected: both refused, nothing downloaded.
+
 ## 4. Duplicate tests
 
 -   Same content, same size.

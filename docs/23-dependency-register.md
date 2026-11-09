@@ -103,12 +103,37 @@ and locked by `packages.lock.json`.
   Required or replaceable      Replaceable
   Notable transitive packages  `xunit.v3.*`, `Microsoft.Testing.Platform` (MIT)
 
+### Build tooling: Native AOT compiler (Phase 7)
+
+  Field                        Value
+  ---------------------------- -----------------------------------------------
+  Packages                     Microsoft.DotNet.ILCompiler 10.0.14 and
+                               runtime.win-x64.Microsoft.DotNet.ILCompiler
+                               10.0.14, Microsoft.NET.ILLink.Tasks 10.0.14
+  Added by                     The .NET SDK itself, for `PublishAot` in
+                               `FreeAll.Installer` (not in
+                               `Directory.Packages.props`; locked in that
+                               project's `packages.lock.json`)
+  Purpose                      Compiles the installer to one native executable
+  Licence                      MIT (.NET runtime)
+  Ships                        Only its output: the installer contains the
+                               native runtime it compiles in
+  Native requirement           MSVC linker at build time (Visual Studio Build
+                               Tools; present on GitHub's Windows runners)
+  Replaceable                  Yes: a self-contained single-file publish works
+                               without it, at about ten times the size
+
+No runtime package was added in Phase 7. Update checks use the .NET HTTP
+client and `ECDsa`; the installer uses `System.IO.Compression`; the SBOM is
+written by a script from the lock files.
+
 ## Review log
 
   Date         Package                                       Change     Reviewer
   ------------ --------------------------------------------- ---------- --------------------
   2026-11-02   xunit.v3                                      Added      AI agent (Phase 0)
   2026-11-03   PdfPig 0.1.16                                 Added      AI agent (Phase 3)
+  2026-11-08   Microsoft.DotNet.ILCompiler 10.0.14 (build)   Added      AI agent (Phase 7)
   2026-11-03   PDFsharp 6.5.0                                Rejected   AI agent (Phase 3):
                                                                         AGPL-3.0-only
   2026-11-02   CommunityToolkit.Mvvm,                        Added      AI agent (Phase 1)

@@ -24,6 +24,8 @@ public sealed class ProjectDependencyTests
         ["FreeAll.Cleanup"] = ["FreeAll.Application", "FreeAll.Core"],
         ["FreeAll.Infrastructure"] = ["FreeAll.Application", "FreeAll.Core"],
         ["FreeAll.Helper"] = ["FreeAll.Core"],
+        // A standalone executable: it installs FreeAll, so it can't depend on it (TD-049).
+        ["FreeAll.Installer"] = [],
         ["FreeAll.Desktop"] =
         [
             "FreeAll.Application",
