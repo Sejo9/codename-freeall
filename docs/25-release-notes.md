@@ -6,7 +6,7 @@ step 11. Each version's section is published as its GitHub release page by
 FreeAll: no internal IDs, no links into the repository, no tables. The app's
 update notes link to that page.
 
-## 1.0.0 (2026-11-09)
+## 1.0.1 (2026-11-09)
 
 The first release of FreeAll: a free tool that shows what is using the space on your Windows 11 PC and helps you decide what to remove, without removing anything on its own.
 
@@ -24,8 +24,8 @@ The first release of FreeAll: a free tool that shows what is using the space on 
 
 ### Install
 
-1. Download `FreeAll-Setup-1.0.0-x64.exe` below.
-2. Optional: check it. In PowerShell, run `Get-FileHash .\FreeAll-Setup-1.0.0-x64.exe` and compare the result with the line for that file in `SHA256SUMS.txt`.
+1. Download `FreeAll-Setup-1.0.1-x64.exe` below.
+2. Optional: check it. In PowerShell, run `Get-FileHash .\FreeAll-Setup-1.0.1-x64.exe` and compare the result with the line for that file in `SHA256SUMS.txt`.
 3. Run it. It installs for your Windows account only and needs no administrator rights. Because FreeAll isn't code-signed yet, Windows SmartScreen may say it "protected your PC": choose **More info**, then **Run anyway**.
 
 To uninstall, use Settings › Apps › Installed apps. It asks whether to keep your FreeAll data; keeping it is the default.
@@ -56,15 +56,15 @@ Please report problems at https://github.com/Sejo9/codename-freeall/issues.
 
 ### Files
 
-- `FreeAll-Setup-1.0.0-x64.exe`: the installer.
+- `FreeAll-Setup-1.0.1-x64.exe`: the installer.
 - `SHA256SUMS.txt`: checksums of the files.
-- `FreeAll-1.0.0-x64.spdx.json`: the list of components FreeAll includes (SPDX software bill of materials).
+- `FreeAll-1.0.1-x64.spdx.json`: the list of components FreeAll includes (SPDX software bill of materials).
 - `manifest.json` and `manifest.json.sig`: the signed update information FreeAll checks.
 ## Release acceptance record (maintainers)
 
 Not part of the published notes; the release workflow publishes only the
 version's own section.
-### 1.0.0 (release acceptance, `02-product-requirements.md` §6)
+### 1.0.1 (release acceptance, `02-product-requirements.md` §6)
 
   ----------------------------------------------------------------------------------------
   Gate                                                    State
@@ -87,7 +87,7 @@ version's own section.
   Documentation, release notes, known limitations         This document
   ----------------------------------------------------------------------------------------
 
-The product owner chose to release 1.0.0 on 2026-11-09 with the gates above
+The product owner chose to release 1.0.1 on 2026-11-09 with the gates above
 still open; they remain the next work (`19-blocked-features.md`).
 ### Release files
 

@@ -969,7 +969,7 @@ manual installer, helper and Narrator passes on a clean test PC.
     variable and the `release` environment first. The VS Code GitHub Actions
     extension parses both and flags only those missing settings.
 
-### Release 1.0.0
+### Release 1.0.0, then 1.0.1
 
 The owner created the update key, the `FREEALL_UPDATE_PUBLIC_KEY` variable
 and the `release` environment, and chose to release this build as 1.0.0 with
@@ -988,8 +988,12 @@ last-write time; TD-043) saw no change. In real use a scan and a removal are
 far apart, so an edit gets a later time; the remaining case, a same-size
 rewrite that restores the old time, is now written down in TD-043 and the
 1.0.0 known limitations. Test files are now created with a last-write time
-an hour in the past. Since nothing had been published, the tag was moved to
-the fixed commit and pushed again.
+an hour in the past.
+
+Moving the `v1.0.0` tag to the fixed commit would have meant deleting a
+pushed tag, so the owner chose to release the fixed commit as **1.0.1**
+instead (version, manifests and notes updated). No 1.0.0 release exists;
+the `v1.0.0` tag stays on GitHub at the commit whose run failed.
 
 ### Next
 

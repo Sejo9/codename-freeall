@@ -6,7 +6,7 @@ The three Phase 7 product questions were answered on 2026-11-09: BLK-021
 (DEC-031), BLK-022 (DEC-032) and BLK-023 (DEC-033, Overview built). One
 new question is open: BLK-024 (elevated scanning, approved for v1 but in no
 phase). The update signing key and the GitHub `release` environment were set
-up by the owner on 2026-11-09, and 1.0.0 was released with the validation
+up by the owner on 2026-11-09, and 1.0.1 was released with the validation
 below still outstanding.
 
 The first release also needs people: an interactive install, upgrade and
