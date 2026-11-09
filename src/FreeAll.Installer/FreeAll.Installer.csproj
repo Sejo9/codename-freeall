@@ -13,6 +13,7 @@
     <AssemblyName>FreeAll.Installer</AssemblyName>
     <RootNamespace>FreeAll.Installer</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>../../assets/FreeAll.ico</ApplicationIcon>
     <!-- Source-generated P/Invoke and COM (shell links, task dialogs). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishAot>true</PublishAot>

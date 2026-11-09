@@ -9,6 +9,7 @@
         d:DataContext="{d:DesignInstance Type=vm:ShellViewModel}"
         x:ClassModifier="internal"
         Title="FreeAll"
+        Icon="pack://application:,,,/Assets/FreeAll.ico"
         Width="1280"
         Height="800"
         MinWidth="720"
@@ -49,7 +50,18 @@
                 ToolTip="Expand or collapse navigation">
           <controls:Glyph Style="{StaticResource Typography.Icon}" Text="&#xE700;" />
         </Button>
-        <TextBlock Margin="12,0,0,0"
+        <!-- Decorative: a Border has no automation peer, so screen readers read only the name beside it. -->
+        <Border Width="24"
+                Height="24"
+                Margin="10,0,0,0"
+                VerticalAlignment="Center"
+                RenderOptions.BitmapScalingMode="HighQuality"
+                Visibility="{Binding IsNavigationExpanded, Converter={StaticResource BoolToVisibility}}">
+          <Border.Background>
+            <ImageBrush ImageSource="pack://application:,,,/Assets/FreeAll-96.png" />
+          </Border.Background>
+        </Border>
+        <TextBlock Margin="8,0,0,0"
                    VerticalAlignment="Center"
                    Style="{StaticResource Typography.Title}"
                    Text="FreeAll"

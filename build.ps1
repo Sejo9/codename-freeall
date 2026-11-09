@@ -125,6 +125,8 @@ if ($Publish) {
 
     $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props'))).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
     $release = Join-Path $artifacts 'release'
+    # Only this build's files: the checksums and the release workflow take everything in this folder.
+    if (Test-Path $release) { Get-ChildItem $release | Remove-Item -Recurse -Force }
     New-Item -ItemType Directory -Force $release | Out-Null
     $setup = Join-Path $release "FreeAll-Setup-$version-x64.exe"
     Invoke-Step "Build the setup file ($version)" {

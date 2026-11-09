@@ -13,5 +13,6 @@
 - The installer is published with Native AOT and needs the MSVC linker; `build.ps1` puts `vswhere.exe` on PATH. Installer tests and smoke runs must redirect every location (`/root`, `/start-menu`, `/data`, `/registry-key Software\FreeAll.Tests\…`); never install into the real locations from a test.
 - Release-only values (helper digest, update address and key) are embedded by `build.ps1` as assembly metadata; Debug builds have none, so they can't start the helper or check for updates.
 - Accessibility: unnamed icons use `controls:Glyph`; buttons with an icon and a label need `AutomationProperties.Name` (architecture tests and the capture's `accessibility.txt` check this).
+- App icon: edit `assets/FreeAll-Icon.png`, then run `tools/New-AppIcon.ps1` and commit `assets/FreeAll.ico` and `assets/FreeAll-96.png` (TD-055).
 - WPF projects do not get `System.IO` as an implicit using (it conflicts with `System.Windows.Shapes.Path`); add `using System.IO;` explicitly.
 - At session end, update `docs/17`, `docs/18` and `docs/19`, and report in the format in `docs/15` §8.

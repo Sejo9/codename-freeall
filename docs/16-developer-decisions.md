@@ -1448,6 +1448,21 @@ Implements DEC-031.
     fetch the new manifest with the old signature; the app then reports the
     update information as invalid and checks again a week later.
 
+### TD-055 --- Application icon (2026-11-09)
+
+-   The product owner's artwork is `assets/FreeAll-Icon.png` (1254 px,
+    transparent background). `tools/New-AppIcon.ps1` turns it into
+    `assets/FreeAll.ico` (16 to 128 px as 32-bit bitmaps, which every part of
+    Windows reads, and 256 px as PNG) and `assets/FreeAll-96.png`. Both
+    generated files are committed, so builds don't run the script.
+-   The icon is the `ApplicationIcon` of the app, the helper (shown in the UAC
+    prompt) and the installer (Native AOT keeps it). The Start menu shortcut
+    and the Settings › Apps entry already point at the installed app, so they
+    show it too. The window uses it, and the navigation pane shows the PNG
+    beside the name in a `Border` with an image brush, which has no automation
+    peer, so screen readers read only the name.
+-   Released as 1.0.2.
+
 ## Decision change procedure
 
 Any change must include: - Decision ID. - Current decision. - Proposed

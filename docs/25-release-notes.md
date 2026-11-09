@@ -6,6 +6,24 @@ step 11. Each version's section is published as its GitHub release page by
 FreeAll: no internal IDs, no links into the repository, no tables. The app's
 update notes link to that page.
 
+## 1.0.2 (2026-11-09)
+
+FreeAll now has its own icon: on the program, the Start menu shortcut, the taskbar, the window, Settings › Apps, the installer, and the Windows prompt shown when FreeAll asks for administrator rights. Nothing else changed.
+
+For what FreeAll does, its known limitations and what has been tested, see the 1.0.1 notes: https://github.com/Sejo9/codename-freeall/releases/tag/v1.0.1
+
+### Install or update
+
+- **New install:** download `FreeAll-Setup-1.0.2-x64.exe` below and run it. It installs for your Windows account only and needs no administrator rights. FreeAll isn't code-signed yet, so if Windows SmartScreen says it "protected your PC", choose **More info**, then **Run anyway**.
+- **Already have 1.0.1:** run the new setup file, or, if you turned on update checks, use **Check now** in Settings. Your data and settings are kept.
+- **Check the download (optional):** in PowerShell, run `Get-FileHash .\FreeAll-Setup-1.0.2-x64.exe` and compare the result with the line for that file in `SHA256SUMS.txt`.
+
+### Files
+
+- `FreeAll-Setup-1.0.2-x64.exe`: the installer.
+- `SHA256SUMS.txt`: checksums of the files.
+- `FreeAll-1.0.2-x64.spdx.json`: the list of components FreeAll includes (SPDX software bill of materials).
+- `manifest.json` and `manifest.json.sig`: the signed update information FreeAll checks.
 ## 1.0.1 (2026-11-09)
 
 The first release of FreeAll: a free tool that shows what is using the space on your Windows 11 PC and helps you decide what to remove, without removing anything on its own.
@@ -87,7 +105,7 @@ version's own section.
   Documentation, release notes, known limitations         This document
   ----------------------------------------------------------------------------------------
 
-The product owner chose to release 1.0.1 on 2026-11-09 with the gates above
+The product owner chose to release 1.0.1 (and 1.0.2, which adds only the icon) on 2026-11-09 with the gates above
 still open; they remain the next work (`19-blocked-features.md`).
 ### Release files
 

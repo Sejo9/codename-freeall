@@ -995,6 +995,19 @@ pushed tag, so the owner chose to release the fixed commit as **1.0.1**
 instead (version, manifests and notes updated). No 1.0.0 release exists;
 the `v1.0.0` tag stays on GitHub at the commit whose run failed.
 
+1.0.1 was published on 2026-11-09 after the owner approved the `release`
+environment: setup file, SBOM, checksums and the signed manifest, which the
+`latest/download` address serves (version 1.0.1, expires 2027-02-07).
+
+### Release 1.0.2: the application icon
+
+The owner supplied the icon (TD-055). `tools/New-AppIcon.ps1` makes the
+multi-size `.ico`; the app, helper and installer carry it, the window uses it,
+and the navigation pane shows it beside the name. Checked: each executable
+has an icon resource, sizes 16 to 256 px decode, captures in light and dark,
+accessibility audit "No problems found". Version 1.0.2; its notes point to
+the 1.0.1 notes for everything else.
+
 ### Next
 
 Owner: approve the `release` environment when the workflow asks, and answer

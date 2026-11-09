@@ -9,6 +9,8 @@
     <AssemblyName>FreeAll</AssemblyName>
     <RootNamespace>FreeAll.Desktop</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Generated from assets/FreeAll-Icon.png by tools/New-AppIcon.ps1. -->
+    <ApplicationIcon>../../assets/FreeAll.ico</ApplicationIcon>
     <!-- English is the only language in v1; resources added later fall back to it (TD-051). -->
     <NeutralLanguage>en</NeutralLanguage>
     <!-- WPF0001: Application.ThemeMode (Fluent theme) is marked experimental; adopted under TD-011. -->
@@ -17,6 +19,12 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="FreeAll.Desktop.Tests" />
+  </ItemGroup>
+
+  <!-- The window icon and the image beside the name in the navigation pane. -->
+  <ItemGroup>
+    <Resource Include="../../assets/FreeAll.ico" Link="Assets/FreeAll.ico" />
+    <Resource Include="../../assets/FreeAll-96.png" Link="Assets/FreeAll-96.png" />
   </ItemGroup>
 
   <!-- The helper's digest, passed in by build.ps1 at publish: the app refuses to start any other helper (DEC-025). -->
