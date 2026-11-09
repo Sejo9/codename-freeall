@@ -969,9 +969,18 @@ manual installer, helper and Narrator passes on a clean test PC.
     variable and the `release` environment first. The VS Code GitHub Actions
     extension parses both and flags only those missing settings.
 
+### Release 1.0.0
+
+The owner created the update key, the `FREEALL_UPDATE_PUBLIC_KEY` variable
+and the `release` environment, and chose to release this build as 1.0.0 with
+the remaining release gates still open (recorded in `25-release-notes.md`).
+Version set to 1.0.0 (`Directory.Build.props`, the three app manifests); the
+1.0.0 notes rewritten for people downloading it, since they become the
+GitHub release page. Tag `v1.0.0` pushed to start the release workflow.
+
 ### Next
 
-Owner: create the update key and the `release` environment
-(`22-operations-runbook.md` §7) and answer BLK-024. Then the release gates in
+Owner: approve the `release` environment when the workflow asks, and answer
+BLK-024. Then the release gates in
 `25-release-notes.md`: independent security review (BLK-020), manual
 installer, helper and Narrator passes, the other Windows 11 releases.
