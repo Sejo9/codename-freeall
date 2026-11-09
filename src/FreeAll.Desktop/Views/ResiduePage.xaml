@@ -158,6 +158,14 @@
 
       <!-- Evidence and decisions for the selected folder -->
       <Border Grid.Column="1" Width="320" Margin="12,0,0,0" Style="{StaticResource Card}">
+        <DockPanel>
+          <!-- The folder's decisions stay visible below the evidence, however short the window. -->
+          <WrapPanel Margin="0,8,0,0" DockPanel.Dock="Bottom" Visibility="{Binding SelectedRow, Converter={StaticResource NullToVisibility}}">
+            <Button Margin="0,4,8,0" Command="{Binding AddToReviewCommand}" Content="Add to review queue" />
+            <Button Margin="0,4,8,0" Command="{Binding KeepCommand}" Content="Keep" ToolTip="Don't suggest it again" />
+            <Button Margin="0,4,8,0" Command="{Binding IgnoreCommand}" Content="Ignore" ToolTip="Hide it from the list" />
+            <Button Margin="0,4,8,0" Command="{Binding UndoCommand}" Content="Undo decision" />
+          </WrapPanel>
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
           <Grid>
             <TextBlock Style="{StaticResource Typography.Caption}" Text="Select a folder to see why it's listed." TextWrapping="Wrap" Visibility="{Binding SelectedRow, Converter={StaticResource InverseNullToVisibility}}" />
@@ -206,14 +214,8 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Style="{StaticResource FieldLabel}" Text="This folder" />
-              <WrapPanel>
-                <Button Margin="0,4,8,0" Command="{Binding KeepCommand}" Content="Keep" ToolTip="Don't suggest it again" />
-                <Button Margin="0,4,8,0" Command="{Binding IgnoreCommand}" Content="Ignore" ToolTip="Hide it from the list" />
-                <Button Margin="0,4,8,0" Command="{Binding AddToReviewCommand}" Content="Add to review queue" />
-                <Button Margin="0,4,8,0" Command="{Binding UndoCommand}" Content="Undo decision" />
-              </WrapPanel>
-              <DockPanel Margin="0,8,0,0">
+              <TextBlock Style="{StaticResource FieldLabel}" Text="A program still uses this folder" />
+              <DockPanel Margin="0,4,0,0">
                 <Button Margin="8,0,0,0" Command="{Binding MarkInUseCommand}" Content="In use" DockPanel.Dock="Right" />
                 <ComboBox AutomationProperties.Name="Program that uses this folder" IsEditable="True" ItemsSource="{Binding OwnerChoices}" Text="{Binding SelectedOwner, UpdateSourceTrigger=PropertyChanged}" ToolTip="Name the program that still uses this folder" />
               </DockPanel>
@@ -233,6 +235,7 @@
             </StackPanel>
           </Grid>
         </ScrollViewer>
+        </DockPanel>
       </Border>
     </Grid>
 

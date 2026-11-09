@@ -141,4 +141,35 @@ public sealed class TemporaryFilesViewModelTests
         Assert.Equal("Kept", page.Rules.Single(r => r.Result.Rule.Id == "windows-temp").DecisionText);
         Assert.Equal("Not found", page.Rules.Single(r => r.Result.Rule.Id == "user-temp").SizeText); // no profile in this scan
     }
+
+    /// <summary>The page says why "Add to review queue" can't be used, and links to Windows' tools for Windows locations.</summary>
+    [Fact]
+    public async Task The_page_says_what_to_select_and_where_windows_locations_are_cleared()
+    {
+        var index = new FakeScanIndex();
+        var key = 20;
+        foreach (var path in new[] { @"\Windows", @"\Windows\Temp", @"\Users", @"\Users\me", @"\Users\me\AppData", @"\Users\me\AppData\Local", @"\Users\me\AppData\Local\Temp" })
+        {
+            index.Folders.Add(new IndexEntry(IndexEntryKind.Folder, 1, key++, null, VolumePath.NameOf(path), path, string.Empty, 5000, 8192, 3, 0, null, null, null, FileAttributes.Directory, 0, null, null, DirectoryScanState.Scanned, 0));
+        }
+
+        var navigator = new FakeNavigator();
+        var page = new TemporaryFilesViewModel(new FakeSystemDrive(index.Sessions[0], @"\Users\me"), new FakeDecisionStore(), index, TestServices.Actions(review: new ReviewQueueService(new FakeReviewQueueStore())), navigator, TestServices.Activity(), NullLogger<TemporaryFilesViewModel>.Instance);
+        await page.OnNavigatedToAsync(CancellationToken.None);
+
+        page.SelectedRule = page.Rules.Single(r => r.Result.Rule.Id == "windows-temp");
+        Assert.True(page.IsManagedByWindows);
+        Assert.Contains("Windows manages this location", page.AddHint, StringComparison.Ordinal);
+        page.OpenWindowsStorageCommand.Execute(null);
+        Assert.Equal("windows", Assert.Single(navigator.Visited));
+
+        page.SelectedRule = page.Rules.Single(r => r.Result.Rule.Id == "user-temp");
+        Assert.False(page.IsManagedByWindows);
+        Assert.StartsWith("Select one or more folders below", page.AddHint, StringComparison.Ordinal);
+        Assert.False(page.AddToReviewCommand.CanExecute(null));
+
+        page.SetSelection([page.Matches[0]]);
+        Assert.Null(page.AddHint);
+        Assert.True(page.AddToReviewCommand.CanExecute(null));
+    }
 }

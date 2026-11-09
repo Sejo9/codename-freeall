@@ -212,6 +212,30 @@ internal static class ScreenCapture
         }
 
         textScale.Override(null);
+
+        // A short window (a 1366 x 768 laptop screen, not maximised): every page's actions must still be reachable.
+        window.Width = 1366;
+        window.Height = 720;
+        foreach (var appTheme in new[] { AppTheme.Light, AppTheme.Dark })
+        {
+            theme.Apply(appTheme);
+            foreach (var key in new[] { "temporary", "residue", "duplicates", "windows", "history", "explorer", "large" })
+            {
+                shell.NavigateTo(key);
+                await SettleAsync(ui);
+                if (shell.CurrentPage is ViewModels.Residue.ResidueViewModel residue && residue.Rows.Count > 0)
+                {
+                    residue.SelectedRow = residue.Rows[0];
+                    await SettleAsync(ui);
+                }
+
+                Save(window, Path.Combine(directory, $"{appTheme}-short-{key}.png"));
+            }
+        }
+
+        theme.Apply(AppTheme.Light);
+        window.Width = 1440;
+        window.Height = 900;
         await File.WriteAllLinesAsync(Path.Combine(directory, "accessibility.txt"), accessibility.Count == 0 ? ["No problems found."] : accessibility);
         metrics.Add($"accessibility: {accessibility.Count} problem(s) in the automation tree");
 

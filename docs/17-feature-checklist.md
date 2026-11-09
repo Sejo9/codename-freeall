@@ -655,7 +655,9 @@ formats in bindings, per-monitor DPI awareness (manifest). Outstanding:
 Narrator, a Windows contrast theme and keyboard-only use, by a person
 (BLK-006); and responsive layouts: at 150 % text on a window narrower than
 about 1,400 pixels, list-and-details pages crop the details pane (seen in the
-150 % captures), so those panes should stack on narrow windows.
+150 % captures), so those panes should stack on narrow windows. Short windows
+(1366 x 720) were fixed in 1.0.3: Temporary Files and Application Residue
+keep their actions visible, and the capture run checks that size.
 
 ### F-041 --- Windows 11 / x64 runtime gate (IMPLEMENTED)
 

@@ -6,6 +6,28 @@ step 11. Each version's section is published as its GitHub release page by
 FreeAll: no internal IDs, no links into the repository, no tables. The app's
 update notes link to that page.
 
+## 1.0.3 (2026-11-09)
+
+Fixes for pages that hid their buttons in smaller windows.
+
+- **Temporary Files:** in a window that isn't very tall (for example a laptop screen that isn't maximised), the list of folders and its **Add to review queue** button could disappear below the location's description. The description now scrolls in a shorter card, so the folders and buttons are always visible.
+- **Temporary Files:** the page now says why **Add to review queue** can't be used yet: select one or more folders first. For locations Windows manages, which FreeAll never removes, it says so and offers **Open Windows Storage**, where the Windows tool that clears them is one click away.
+- **Application Residue:** **Add to review queue**, **Keep**, **Ignore** and **Undo decision** now stay visible below a folder's evidence instead of scrolling out of view.
+
+For what FreeAll does, its known limitations and what has been tested, see the 1.0.1 notes: https://github.com/Sejo9/codename-freeall/releases/tag/v1.0.1
+
+### Install or update
+
+- **New install:** download `FreeAll-Setup-1.0.3-x64.exe` below and run it. It installs for your Windows account only and needs no administrator rights. FreeAll isn't code-signed yet, so if Windows SmartScreen says it "protected your PC", choose **More info**, then **Run anyway**.
+- **Already installed:** run the new setup file, or use **Check now** under Updates in Settings. Your data, settings and review queue are kept.
+- **Check the download (optional):** in PowerShell, run `Get-FileHash .\FreeAll-Setup-1.0.3-x64.exe` and compare the result with the line for that file in `SHA256SUMS.txt`.
+
+### Files
+
+- `FreeAll-Setup-1.0.3-x64.exe`: the installer.
+- `SHA256SUMS.txt`: checksums of the files.
+- `FreeAll-1.0.3-x64.spdx.json`: the list of components FreeAll includes (SPDX software bill of materials).
+- `manifest.json` and `manifest.json.sig`: the signed update information FreeAll checks.
 ## 1.0.2 (2026-11-09)
 
 FreeAll now has its own icon: on the program, the Start menu shortcut, the taskbar, the window, Settings › Apps, the installer, and the Windows prompt shown when FreeAll asks for administrator rights. Nothing else changed.

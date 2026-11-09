@@ -92,13 +92,15 @@
 
       <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" Background="Transparent" AutomationProperties.Name="Resize details pane" />
 
-      <Grid Grid.Column="2">
+      <!-- The description takes at most 45 % of the pane's height and scrolls inside, so the folders and
+           their buttons below always stay visible, even in a short window. -->
+      <Grid x:Name="DetailsPane" Grid.Column="2">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
-          <RowDefinition Height="*" />
+          <RowDefinition Height="*" MinHeight="150" />
         </Grid.RowDefinitions>
 
-        <Border MaxHeight="400" Margin="0,0,0,12" Style="{StaticResource Card}">
+        <Border MaxHeight="{Binding ActualHeight, ElementName=DetailsPane, Converter={StaticResource ShareOfLength}, ConverterParameter=0.45}" Margin="0,0,0,12" Style="{StaticResource Card}">
           <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
             <StackPanel>
               <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{StaticResource Typography.Title}" Text="{Binding SelectedRule.Title}" />
@@ -128,7 +130,15 @@
               <Button Margin="0,0,8,4" Command="{Binding RevealCommand}" Content="Open in File Explorer" />
               <Button Margin="0,0,8,4" Command="{Binding ShowInExplorerCommand}" Content="Show in Storage Explorer" />
               <Button Margin="0,0,8,4" Command="{Binding CopyPathCommand}" Content="Copy path" />
+              <Button Margin="0,0,8,4" Command="{Binding OpenWindowsStorageCommand}" Content="Open Windows Storage" Visibility="{Binding IsManagedByWindows, Converter={StaticResource BoolToVisibility}}" />
             </WrapPanel>
+            <TextBlock Margin="12,0,12,6"
+                       DockPanel.Dock="Top"
+                       AutomationProperties.LiveSetting="Polite"
+                       Style="{StaticResource Typography.Caption}"
+                       Text="{Binding AddHint}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding AddHint, Converter={StaticResource NullToVisibility}}" />
             <TextBlock Margin="12,4" DockPanel.Dock="Top" Style="{StaticResource Typography.Caption}" Text="Not found in the scan." Visibility="{Binding Matches.Count, Converter={StaticResource InverseNullToVisibility}}" />
             <DataGrid AutomationProperties.Name="Folders found"
                       CanUserSortColumns="False"

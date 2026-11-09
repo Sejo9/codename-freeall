@@ -96,11 +96,28 @@ internal sealed partial class TemporaryFilesViewModel : PageViewModel
 
     public override Task OnNavigatedToAsync(CancellationToken cancellationToken) => _loaded ? Task.CompletedTask : PendingLoad = AnalyseAsync();
 
+    /// <summary>True when the selected location is one Windows manages, which FreeAll never removes.</summary>
+    [ObservableProperty]
+    public partial bool IsManagedByWindows { get; private set; }
+
+    /// <summary>Says why "Add to review queue" can't be used yet, or null when it can (or there is nothing to add).</summary>
+    [ObservableProperty]
+    public partial string? AddHint { get; private set; }
+
     public void SetSelection(IReadOnlyList<TemporaryMatchRowViewModel> rows)
     {
         _selection = rows;
         HasSelection = rows.Count > 0 && rows.All(r => !r.Match.Rule.ManagedByWindows);
+        IsManagedByWindows = SelectedRule?.Result.Rule.ManagedByWindows == true;
+        AddHint = SelectedRule is null || Matches.Count == 0
+            ? null
+            : IsManagedByWindows
+                ? "Windows manages this location, so FreeAll doesn't remove it. Windows Storage opens the Windows tool that clears it."
+                : HasSelection ? null : "Select one or more folders below (Ctrl or Shift for several) to add them to the review queue.";
     }
+
+    [RelayCommand]
+    private void OpenWindowsStorage() => _navigator.NavigateTo("windows");
 
     [RelayCommand]
     private async Task AnalyseAsync()

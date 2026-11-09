@@ -1006,7 +1006,26 @@ multi-size `.ico`; the app, helper and installer carry it, the window uses it,
 and the navigation pane shows it beside the name. Checked: each executable
 has an icon resource, sizes 16 to 256 px decode, captures in light and dark,
 accessibility audit "No problems found". Version 1.0.2; its notes point to
-the 1.0.1 notes for everything else.
+the 1.0.1 notes for everything else. Published 2026-11-09.
+
+### Release 1.0.3: buttons hidden in short windows
+
+Reported by the owner with a screenshot (1366 x 723 window): on Temporary
+Files the folder list and **Add to review queue** had no room. The details
+card took up to 400 px and the list got the rest, which was nothing. Fixes:
+
+-   The details card's height is capped at 45 % of its pane
+    (`ShareOfLengthConverter`) and scrolls inside; the folder list keeps at
+    least 150 px.
+-   A hint says why the button is disabled (nothing selected, or a location
+    Windows manages), with **Open Windows Storage** for the latter.
+-   Application Residue: the folder's action buttons are pinned below the
+    scrolling evidence.
+-   The capture run now also saves the list-and-details pages at 1366 x 720
+    in light and dark (`*-short-*.png`). Duplicate Files, Windows Storage,
+    Scan History, Storage Explorer and Large Files were checked there: their
+    actions stay reachable.
+-   Test: `The_page_says_what_to_select_and_where_windows_locations_are_cleared`.
 
 ### Next
 

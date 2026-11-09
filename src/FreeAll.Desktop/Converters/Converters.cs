@@ -66,6 +66,21 @@ internal sealed class ByteSizeConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>
+/// A share of a length, for example a details card's MaxHeight as a share of its pane's height, so the list
+/// below it always keeps the rest. The parameter is the share in invariant format ("0.45").
+/// </summary>
+internal sealed class ShareOfLengthConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is double length && double.TryParse(parameter as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var share) && length > 0
+            ? length * share
+            : double.PositiveInfinity;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 internal sealed class InverseBooleanConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
