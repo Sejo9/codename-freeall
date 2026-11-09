@@ -49,6 +49,24 @@ public sealed class AccessibilityMarkupTests
         Assert.True(unnamed.Count == 0, $"{view}: buttons with only an icon need AutomationProperties.Name: {string.Join(" | ", unnamed)}");
     }
 
+    /// <summary>
+    /// A progress bar's value binds two-way by default, which throws at run time against a read-only
+    /// property (found by the capture run's log on the Settings page's download progress).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Views))]
+    public void Progress_bars_bind_their_value_one_way(string view)
+    {
+        var document = Load(view);
+
+        var twoWay = document.Descendants(Presentation + "ProgressBar")
+            .Select(p => (string?)p.Attribute("Value"))
+            .Where(v => v is not null && v.StartsWith("{Binding", StringComparison.Ordinal) && !v.Contains("Mode=OneWay", StringComparison.Ordinal) && !v.Contains("Mode=OneTime", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(twoWay.Count == 0, $"{view}: ProgressBar Value bindings need Mode=OneWay: {string.Join(", ", twoWay)}");
+    }
+
     private static bool IsIconStyle(string? style) => style is not null && (style.Contains("Typography.Icon", StringComparison.Ordinal) || style.Contains("Icon.Entry", StringComparison.Ordinal));
 
     /// <summary>

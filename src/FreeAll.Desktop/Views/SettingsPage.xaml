@@ -96,7 +96,7 @@
             <Button Margin="0,0,8,4" Command="{Binding DownloadCommand}" Content="Download update" Visibility="{Binding HasAvailable, Converter={StaticResource BoolToVisibility}}" />
             <Button Margin="0,0,8,4" Command="{Binding InstallCommand}" Content="Install update…" Style="{StaticResource Button.Accent}" Visibility="{Binding IsDownloaded, Converter={StaticResource BoolToVisibility}}" />
           </WrapPanel>
-          <ProgressBar Height="4" Margin="0,4,0,0" AutomationProperties.Name="Download progress" Maximum="1" Value="{Binding Progress}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+          <ProgressBar Height="4" Margin="0,4,0,0" AutomationProperties.Name="Download progress" Maximum="1" Value="{Binding Progress, Mode=OneWay}" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
           <TextBlock Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite" Style="{StaticResource Typography.Caption}" Text="{Binding StatusText}" TextWrapping="Wrap" Visibility="{Binding StatusText, Converter={StaticResource NullToVisibility}}" />
           <StackPanel Margin="0,8,0,0" Visibility="{Binding HasAvailable, Converter={StaticResource BoolToVisibility}}">
             <TextBlock Style="{StaticResource Typography.Title}" Text="{Binding AvailableTitle}" />

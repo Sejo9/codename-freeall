@@ -51,6 +51,9 @@
   Installer         Deployment        FreeAll.Installer Install/upgrade/uninstall
                                       (TD-049)          tests, build smoke test
 
+  Overview          UI §5, Catalogue  Desktop (TD-053)  Overview view-model
+                    §A                                  tests, captures
+
   Windows storage   PRD-011, Spec §9  Application,      Allowlist and area tests
                                       Desktop (TD-048)
 

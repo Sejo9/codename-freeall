@@ -74,6 +74,20 @@ internal static class ScreenCapture
                 }
             }
 
+            // The overview is longer than the window: its lower part too.
+            shell.NavigateTo("overview");
+            await SettleAsync(ui);
+            if (FindDescendant<Views.OverviewPage>(window) is { } overview && FindDescendant<System.Windows.Controls.ScrollViewer>(overview) is { ScrollableHeight: > 0 } scroller)
+            {
+                scroller.ScrollToVerticalOffset(scroller.ScrollableHeight / 2);
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-overview-middle.png"));
+                scroller.ScrollToEnd();
+                await SettleAsync(ui);
+                Save(window, Path.Combine(directory, $"{appTheme}-overview-end.png"));
+                scroller.ScrollToHome();
+            }
+
             // The first-start update question, and an update as Settings shows it (review only; nothing is fetched).
             if (shell.Updates is { } updates)
             {
@@ -190,7 +204,7 @@ internal static class ScreenCapture
         var textScale = services.GetRequiredService<TextScaleService>();
         theme.Apply(AppTheme.Light);
         textScale.Override(1.5);
-        foreach (var key in new[] { "drives", "windows", "settings", "duplicates" })
+        foreach (var key in new[] { "overview", "drives", "windows", "settings", "duplicates" })
         {
             shell.NavigateTo(key);
             await SettleAsync(ui);
@@ -548,6 +562,26 @@ internal static class ScreenCapture
     {
         await Task.Delay(700);
         await ui.WaitForIdleAsync();
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            if (FindDescendant<T>(child) is { } deeper)
+            {
+                return deeper;
+            }
+        }
+
+        return null;
     }
 
     private static bool TryGetPath(string[] args, string name, [NotNullWhen(true)] out string? path)

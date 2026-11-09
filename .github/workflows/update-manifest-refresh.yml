@@ -1,0 +1,72 @@
+name: Refresh update manifest
+
+# Update manifests expire after 90 days, so an old one can't hide newer releases (TD-050). This re-signs
+# the latest release's manifest with a later expiry and a higher sequence, monthly, without changing what
+# it offers (DEC-031, TD-054). It first checks the published manifest against the public key and the setup
+# file against that manifest, so it never signs a file that was swapped in the release. It runs in the
+# "release" environment, so a reviewer approves each run.
+
+on:
+  schedule:
+    - cron: '17 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Re-sign the latest manifest
+    runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FREEALL_UPDATE_PUBLIC_KEY: ${{ vars.FREEALL_UPDATE_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Download the latest release's manifest and setup file
+        id: latest
+        shell: pwsh
+        run: |
+          $tag = gh release view --json tagName --jq .tagName
+          if (-not $tag) { throw 'There is no published release to refresh.' }
+          gh release download $tag --dir artifacts/current --pattern manifest.json --pattern manifest.json.sig --pattern 'FreeAll-Setup-*-x64.exe'
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Check what is published
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem artifacts/current -Filter 'FreeAll-Setup-*-x64.exe' | Select-Object -First 1).FullName
+          ./tools/updates/Test-UpdateManifest.ps1 -ManifestPath artifacts/current/manifest.json -SignaturePath artifacts/current/manifest.json.sig `
+            -PublicKey $env:FREEALL_UPDATE_PUBLIC_KEY -SetupPath $setup | Format-List
+
+      - name: Sign again with a later expiry
+        shell: pwsh
+        env:
+          FREEALL_UPDATE_SIGNING_KEY: ${{ secrets.FREEALL_UPDATE_SIGNING_KEY }}
+          FREEALL_UPDATE_SIGNING_PASSWORD: ${{ secrets.FREEALL_UPDATE_SIGNING_PASSWORD }}
+        run: |
+          if (-not $env:FREEALL_UPDATE_SIGNING_KEY -or -not $env:FREEALL_UPDATE_SIGNING_PASSWORD) { throw 'The release environment has no signing key or password.' }
+          $current = [System.IO.File]::ReadAllText((Resolve-Path artifacts/current/manifest.json)) | ConvertFrom-Json
+          $setup = (Get-ChildItem artifacts/current -Filter 'FreeAll-Setup-*-x64.exe' | Select-Object -First 1).FullName
+          $password = ConvertTo-SecureString $env:FREEALL_UPDATE_SIGNING_PASSWORD -AsPlainText -Force
+          $sequence = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          if ($sequence -le $current.sequence) { throw "The new sequence $sequence isn't above the published $($current.sequence)." }
+          ./tools/updates/New-UpdateManifest.ps1 -SetupPath $setup -Version $current.version -PackageUrl $current.package.url `
+            -Sequence $sequence -PrivateKeyPem $env:FREEALL_UPDATE_SIGNING_KEY -Password $password -OutputDirectory artifacts/update `
+            -Notes $current.notes -Compatibility $current.compatibility -MinimumWindowsBuild $current.minimumWindowsBuild
+          ./tools/updates/Test-UpdateManifest.ps1 -ManifestPath artifacts/update/manifest.json -SignaturePath artifacts/update/manifest.json.sig `
+            -PublicKey $env:FREEALL_UPDATE_PUBLIC_KEY -SetupPath $setup | Format-List
+
+      - name: Replace the manifest in the release
+        shell: pwsh
+        env:
+          TAG: ${{ steps.latest.outputs.tag }}
+        run: gh release upload $env:TAG artifacts/update/manifest.json artifacts/update/manifest.json.sig --clobber

@@ -11,6 +11,9 @@ manifest (`notes`), so keep it plain and short.
 
 ### What it does
 
+-   **Overview** (new): each drive's space and the state of its last scan,
+    storage by category, what grew since the previous scan, what is waiting
+    for a decision, and recent activity. It only reads what FreeAll stored.
 -   Finds local drives, scans them with streaming, bounded-memory
     enumeration, and keeps a searchable index with full and incremental
     (change journal) scans and scan history.
@@ -51,9 +54,8 @@ Windows 11 Pro 26H2 has been tested. ARM64 and Windows 10 are not supported.
 -   **Not code-signed** (DEC-025): Windows SmartScreen warns when the setup
     file is first run, and the helper's UAC prompt shows "Unknown publisher".
     The helper is checked against a digest built into the app instead.
--   **Overview** is still a placeholder page (F-006).
--   **Update checks can't run in this build** until the project publishes an
-    update address and key (BLK-021). The question isn't asked until then.
+-   **Update checks** work only in builds made after the update key is set
+    up (`22-operations-runbook.md` §7); other builds don't ask.
 -   A standard-user scan of the Windows drive is normally **partial**: some
     Windows folders can't be read without administrator rights, and the app
     says so. Elevated scanning (DEC-023) is not built.
@@ -110,6 +112,6 @@ Windows 11 Pro 26H2 has been tested. ARM64 and Windows 10 are not supported.
     from the lock files.
 -   `SHA256SUMS.txt`: checksums of the files above.
 
-To offer the release as an update, sign a manifest with
-`tools/updates/New-UpdateManifest.ps1` and publish it beside the setup file
+Pushing a version tag runs `.github/workflows/release.yml`, which builds these
+files, signs the update manifest and publishes them all as a GitHub release
 (`22-operations-runbook.md` §7).

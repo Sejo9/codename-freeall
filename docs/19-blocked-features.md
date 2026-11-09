@@ -2,10 +2,12 @@
 
 ## Current blockers
 
-Three product questions are open from Phase 7: BLK-021 (the update address
-and signing key), BLK-022 (privileged Windows cleanup) and BLK-023 (the
-Overview page for the first release). None of them stops the code; each
-has a recommendation below. BLK-017 was resolved on 2026-11-03 (DEC-029).
+The three Phase 7 product questions were answered on 2026-11-09: BLK-021
+(DEC-031), BLK-022 (DEC-032) and BLK-023 (DEC-033, Overview built). One
+new question is open: BLK-024 (elevated scanning, approved for v1 but in no
+phase). Before the first release the product owner also has to create the
+update signing key and the GitHub `release` environment
+(`22-operations-runbook.md` §7).
 
 The first release also needs people: an interactive install, upgrade and
 uninstall on a clean user account (`12-quality-assurance.md` §3.3), the
@@ -71,7 +73,9 @@ F-007 in `17-feature-checklist.md`).
 
 ### BLK-021 --- Update address and signing key
 
--   **Status:** OPEN
+-   **Status:** RESOLVED → DEC-031 (2026-11-09): GitHub Releases, key in a
+    protected GitHub environment with an offline backup (TD-054). Owner
+    set-up still to do: `22-operations-runbook.md` §7.
 -   **Affected features:** F-036; PR-018, DEC-019, DEC-025
 -   **Question:** Where are updates published, and who holds the project's
     update signing key?
@@ -94,7 +98,8 @@ F-007 in `17-feature-checklist.md`).
 
 ### BLK-022 --- Privileged Windows cleanup
 
--   **Status:** OPEN (nothing to change for v1)
+-   **Status:** RESOLVED → DEC-032 (2026-11-09): option (a); FreeAll keeps
+    opening Windows' own tools.
 -   **Affected features:** F-034; PR-011, TD-047
 -   **Question:** Should FreeAll itself run Windows' privileged cleanup (DISM
     component cleanup, turning hibernation off) through the elevated helper,
@@ -111,7 +116,8 @@ F-007 in `17-feature-checklist.md`).
 
 ### BLK-023 --- Overview page in the first release
 
--   **Status:** OPEN
+-   **Status:** RESOLVED → DEC-033 (2026-11-09): option (a), built (F-006,
+    TD-053).
 -   **Affected features:** F-006; `07-ui-ux-design.md` §5
 -   **Question:** The Overview (dashboard) page is still a placeholder, and no
     roadmap phase schedules it. Ship the first release with it as is, hide it,
@@ -124,6 +130,31 @@ F-007 in `17-feature-checklist.md`).
     (drives, latest scans, Windows Storage, the review queue).
 -   **Decision owner:** Product owner.
 -   **Date opened:** 2026-11-08
+
+## Product-owner question (2026-11-09)
+
+### BLK-024 --- Elevated scanning has no phase
+
+-   **Status:** OPEN
+-   **Affected features:** DEC-023; F-011, F-019/F-020, F-034
+-   **Question:** DEC-023 put an opt-in elevated scan in v1 scope, but no
+    roadmap phase scheduled it and it isn't built (TD-047 left it out of the
+    helper). Build it before the first release, or release without it and
+    list it as a known limitation?
+-   **Why clarification is required:** It changes the first release's scope
+    and adds a helper command, which moves the privilege boundary
+    (`15-ai-agent-rules.md` §5).
+-   **Options:** (a) build it before the first release: a fixed
+    `EnumerateDirectory` helper command, a "Scan as administrator" choice for
+    the Windows drive, results marked as elevated, its own security review;
+    (b) release without it (already in `25-release-notes.md` as a
+    limitation) and schedule it after v1.
+-   **Recommendation:** (b). Standard-user scans already say what they
+    couldn't read; Windows Storage and Temporary Files mark those areas "Not
+    readable". Adding a privileged command just before the independent
+    security review (BLK-020) widens what that review has to cover.
+-   **Decision owner:** Product owner.
+-   **Date opened:** 2026-11-09
 
 ## Validation evidence (Phase 7, 2026-11-08)
 

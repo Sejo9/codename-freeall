@@ -148,7 +148,11 @@ locations. Record the result and date in `17-feature-checklist.md` and in
 
 **B. Update**
 
-Needs a test update address and key (BLK-021); a build made with them:
+Needs a test key and a test address, never the real release key (DEC-031):
+a key made with `tools/updates/New-UpdateKey.ps1`, manifests signed with
+`New-UpdateManifest.ps1` and served over HTTPS (for example from a fork's
+GitHub releases), and a build made with `build.ps1 -UpdateManifestUrl …
+-UpdatePublicKey …`:
 
 1.  First start: the update question appears. Choose "Don't check": nothing
     is fetched (check with a network monitor).

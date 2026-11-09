@@ -83,19 +83,61 @@ sensitive diagnostics.
 
 ## 7. Publishing an update
 
-1.  Build: `build.ps1 -Configuration Release -Locked -Publish` with
-    `FREEALL_UPDATE_MANIFEST_URL` and `FREEALL_UPDATE_PUBLIC_KEY` set.
-2.  Upload `FreeAll-Setup-<version>-x64.exe` to its HTTPS address.
-3.  On the machine holding the key: `tools/updates/New-UpdateManifest.ps1
-    -SetupPath … -Version … -PackageUrl … -Sequence <previous + 1>
-    -PrivateKeyPath … -OutputDirectory … -Notes …`.
-4.  Upload `manifest.json` and `manifest.json.sig` together to the manifest
-    address. Never reuse or lower a sequence number.
-5.  Re-sign with a higher sequence before the manifest expires (90 days by
-    default), even without a new release.
-6.  If the key may be compromised: stop publishing, make a new key, ship a
-    release carrying the new public key through the normal installer, and
-    tell users who can't update to download it directly.
+Releases and updates go through GitHub Releases (DEC-031, TD-054).
+
+### One-time set-up (product owner)
+
+1.  On your own PC, outside the repository:
+    `pwsh tools/updates/New-UpdateKey.ps1 -PrivateKeyPath D:\keys\freeall-update.pem`.
+    Choose a long password. The last line printed is the public key.
+2.  Keep a backup of the `.pem` file and its password somewhere offline (a
+    password manager plus a USB drive, for example). Whoever has both can
+    publish updates every FreeAll installation will offer.
+3.  GitHub › Settings › Secrets and variables › Actions › Variables: add
+    `FREEALL_UPDATE_PUBLIC_KEY` with the public key.
+4.  GitHub › Settings › Environments: create `release`. Add yourself as a
+    required reviewer, tick "Prevent self-review" only if someone else will
+    approve, and limit deployment to tags matching `v*`. Add the environment
+    secrets `FREEALL_UPDATE_SIGNING_KEY` (the whole text of the `.pem` file)
+    and `FREEALL_UPDATE_SIGNING_PASSWORD`.
+5.  Builds made after step 3 check
+    `https://github.com/<owner>/<repo>/releases/latest/download/manifest.json`
+    (set `FREEALL_UPDATE_MANIFEST_URL` as a variable only to use another
+    address).
+
+### Each release
+
+1.  Set `<Version>` in `Directory.Build.props`, add the version's section to
+    `25-release-notes.md`, and merge to `main` with CI green.
+2.  Tag and push: `git tag v<version>` then `git push origin v<version>`.
+3.  The Release workflow builds and tests without the key, then waits for
+    your approval of the `release` environment. Approve it. It signs, checks
+    the signature and the setup file, and publishes the release with the
+    setup file, SBOM, checksums and the signed manifest.
+4.  The newest release that isn't a pre-release or draft is what apps are
+    offered. Mark a release as a pre-release to keep it out of updates.
+
+### Keeping the manifest valid
+
+Manifests expire after 90 days. The "Refresh update manifest" workflow
+re-signs the latest one on the 1st of each month and waits for your
+approval; it can also be started by hand from the Actions tab. If it is
+skipped for three months, apps report that the update information has
+expired until it runs.
+
+### Without GitHub Actions
+
+`tools/updates/New-UpdateManifest.ps1 -PrivateKeyPath …` signs on your own
+PC; `tools/updates/Test-UpdateManifest.ps1` checks the result. Upload
+`manifest.json` and `manifest.json.sig` together to the latest release.
+Sequences must always rise; the workflows use the signing time in seconds.
+
+### If the key may be compromised
+
+Delete the environment secrets, stop publishing, make a new key, ship a
+release carrying the new public key (signed with the old key while it is
+still trusted, if possible), and tell users who can't update to download it
+directly.
 
 ## 8. Incident handling
 

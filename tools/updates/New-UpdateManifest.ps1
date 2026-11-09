@@ -19,7 +19,10 @@ param(
     [Parameter(Mandatory)] [string] $Version,
     [Parameter(Mandatory)] [string] $PackageUrl,
     [Parameter(Mandatory)] [long] $Sequence,
-    [Parameter(Mandatory)] [string] $PrivateKeyPath,
+    # The encrypted PEM file from New-UpdateKey.ps1, or its text in -PrivateKeyPem (the release workflow
+    # passes the GitHub secret that way, so the key is never written to the runner's disk).
+    [string] $PrivateKeyPath,
+    [string] $PrivateKeyPem,
     [Parameter(Mandatory)] [string] $OutputDirectory,
     [securestring] $Password,
     [string] $Notes = '',
@@ -32,6 +35,7 @@ param(
 $ErrorActionPreference = 'Stop'
 if (-not $PackageUrl.StartsWith('https://', [StringComparison]::Ordinal)) { throw 'The package address must be HTTPS.' }
 if ($Sequence -lt 1) { throw 'The sequence starts at 1.' }
+if ([string]::IsNullOrEmpty($PrivateKeyPath) -eq [string]::IsNullOrEmpty($PrivateKeyPem)) { throw 'Give either -PrivateKeyPath or -PrivateKeyPem.' }
 [void][version]::Parse($Version)
 if (-not $Password) { $Password = Read-Host -AsSecureString 'Password for the private key' }
 
@@ -60,7 +64,7 @@ $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes(($manifest | ConvertTo
 $prefix = [System.Text.Encoding]::ASCII.GetBytes("freeall-update-manifest-v1`n")
 $key = [System.Security.Cryptography.ECDsa]::Create()
 try {
-    $key.ImportFromEncryptedPem((Get-Content $PrivateKeyPath -Raw), (ConvertFrom-SecureString $Password -AsPlainText))
+    $key.ImportFromEncryptedPem($(if ($PrivateKeyPem) { $PrivateKeyPem } else { Get-Content $PrivateKeyPath -Raw }), (ConvertFrom-SecureString $Password -AsPlainText))
     if ($key.KeySize -ne 256) { throw 'The key is not a P-256 key.' }
     $signature = $key.SignData([byte[]]($prefix + $bytes), [System.Security.Cryptography.HashAlgorithmName]::SHA256,
         [System.Security.Cryptography.DSASignatureFormat]::IeeeP1363FixedFieldConcatenation)

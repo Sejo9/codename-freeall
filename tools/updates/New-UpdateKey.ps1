@@ -6,7 +6,9 @@
 .DESCRIPTION
     Writes the private key as a password-encrypted PKCS#8 PEM file and prints the public key, which is the
     value for FREEALL_UPDATE_PUBLIC_KEY (build.ps1 -UpdatePublicKey). Keep the private key and its password
-    offline and out of this repository; whoever holds them can publish updates every FreeAll build trusts.
+    out of this repository, with an offline backup; whoever holds them can publish updates every FreeAll
+    build trusts. The release workflow reads them from the GitHub "release" environment (DEC-031,
+    docs/22-operations-runbook.md §7).
     Changing the key later means a release signed with the old key must ship the new public key first.
 
 .EXAMPLE

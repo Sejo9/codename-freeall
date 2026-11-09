@@ -133,6 +133,18 @@ internal static class ServiceConfiguration
         services.AddSingleton<CleanupReviewViewModel>();
 
         // Pages and shell
+        // Overview is the first page, so the shell creates it while the shell itself is being built: the
+        // navigator (the shell) is looked up only when a link is used.
+        services.AddTransient(sp => new OverviewViewModel(
+            sp.GetRequiredService<IVolumeDiscovery>(),
+            sp.GetRequiredService<IScanIndex>(),
+            sp.GetRequiredService<ICleanupStore>(),
+            sp.GetRequiredService<IDuplicateStore>(),
+            sp.GetRequiredService<ReviewQueueService>(),
+            sp.GetRequiredService<INavigator>,
+            sp.GetRequiredService<ScanActivityViewModel>(),
+            sp.GetRequiredService<IUiDispatcher>(),
+            sp.GetRequiredService<ILogger<OverviewViewModel>>()));
         services.AddTransient<DrivesViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<ExplorerViewModel>();
@@ -196,7 +208,7 @@ internal static class ServiceConfiguration
     /// <summary>Primary navigation in the order defined by docs/07-ui-ux-design.md §2.</summary>
     private static List<NavigationItem> CreateNavigation(IServiceProvider sp) =>
     [
-        Placeholder("overview", "Overview", "", "Storage summary, scan completeness, largest growth areas and recent activity."),
+        new("overview", "Overview", "", sp.GetRequiredService<OverviewViewModel>),
         new("drives", "Drives", "", sp.GetRequiredService<DrivesViewModel>),
         new("explorer", "Storage Explorer", "", sp.GetRequiredService<ExplorerViewModel>),
         new("categories", "File Categories", "", sp.GetRequiredService<CategoriesViewModel>),
@@ -209,7 +221,4 @@ internal static class ServiceConfiguration
         new("activity", "Activity", "", sp.GetRequiredService<ActivityViewModel>),
         new("settings", "Settings", "", sp.GetRequiredService<SettingsViewModel>),
     ];
-
-    private static NavigationItem Placeholder(string key, string title, string glyph, string description) =>
-        new(key, title, glyph, () => new PlaceholderPageViewModel(title, "Planned feature. Not available in this build.", glyph, description));
 }

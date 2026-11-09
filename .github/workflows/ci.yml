@@ -27,7 +27,7 @@ jobs:
         shell: pwsh
         # Public values (an address and a public key). Without them the build simply can't check for updates.
         env:
-          FREEALL_UPDATE_MANIFEST_URL: ${{ vars.FREEALL_UPDATE_MANIFEST_URL }}
+          FREEALL_UPDATE_MANIFEST_URL: ${{ vars.FREEALL_UPDATE_MANIFEST_URL || format('https://github.com/{0}/releases/latest/download/manifest.json', github.repository) }}
           FREEALL_UPDATE_PUBLIC_KEY: ${{ vars.FREEALL_UPDATE_PUBLIC_KEY }}
         run: ./build.ps1 -Configuration Release -Locked -Publish
 

@@ -56,9 +56,10 @@ Support repair or reinstall without corrupting the database.
 
 ## 5. Update policy
 
-Implemented (TD-050). Release builds need `FREEALL_UPDATE_MANIFEST_URL` and
-`FREEALL_UPDATE_PUBLIC_KEY` (BLK-021); without them a build can't check and
-doesn't ask.
+Implemented (TD-050). Updates are published as GitHub Releases and the
+manifest is signed by the release workflow (DEC-031, TD-054;
+`22-operations-runbook.md` §7). Builds without `FREEALL_UPDATE_PUBLIC_KEY`
+can't check and don't ask.
 
 -   Ask user during initial setup whether to check for updates.
 -   No telemetry.

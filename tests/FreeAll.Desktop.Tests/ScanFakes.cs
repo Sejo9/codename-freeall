@@ -123,7 +123,12 @@ internal sealed class FakeScanIndex : IScanIndex
 
     public Task<ScanSessionSummary?> GetSessionAsync(long sessionId, CancellationToken cancellationToken) => Result(Sessions.FirstOrDefault(s => s.Id == sessionId));
 
-    public Task<IReadOnlyList<ScanSessionSummary>> GetLatestSessionsAsync(CancellationToken cancellationToken) => Result<IReadOnlyList<ScanSessionSummary>>(Sessions);
+    /// <summary>The newest finished session of each volume, as the real store returns.</summary>
+    public Task<IReadOnlyList<ScanSessionSummary>> GetLatestSessionsAsync(CancellationToken cancellationToken) => Result<IReadOnlyList<ScanSessionSummary>>(Sessions
+        .Where(s => s.State is not (ScanState.Queued or ScanState.Running or ScanState.Cancelling))
+        .GroupBy(s => s.Volume)
+        .Select(g => g.OrderByDescending(s => s.Id).First())
+        .ToList());
 
     public Task<IReadOnlyList<ScanSessionSummary>> GetBrowsableSessionsAsync(CancellationToken cancellationToken) => Result<IReadOnlyList<ScanSessionSummary>>(Sessions.Where(s => s.HasInventory).ToList());
 
@@ -196,6 +201,9 @@ internal sealed class FakeScanIndex : IScanIndex
 
     public List<(long Older, long Newer)> Comparisons { get; } = [];
 
+    /// <summary>False: comparisons report folders as unavailable, as when a scan's detail was replaced.</summary>
+    public bool CompareFolders { get; set; } = true;
+
     public Task<SearchResult> SearchAsync(SearchQuery query, CancellationToken cancellationToken)
     {
         Searches.Add(query);
@@ -213,8 +221,8 @@ internal sealed class FakeScanIndex : IScanIndex
         return Result(new SessionComparison(
             Sessions.First(s => s.Id == olderSessionId),
             Sessions.First(s => s.Id == newerSessionId),
-            [new CategoryChange(FileCategory.Images, 1000, 500_000_000, 1200, 750_000_000)],
-            [new FolderChange(@"\Photos", 1, 500_000_000, 750_000_000), new FolderChange(@"\Old", 1, 10_000, null)]));
+            [new CategoryChange(FileCategory.Images, 1000, 500_000_000, 1200, 750_000_000), new CategoryChange(FileCategory.Documents, 5, 9_000, 1, 10)],
+            CompareFolders ? [new FolderChange(@"\Photos", 1, 500_000_000, 750_000_000), new FolderChange(@"\Old", 1, 10_000, null)] : null));
     }
 
     public async IAsyncEnumerable<IndexEntry> EnumerateEntriesAsync(long sessionId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)

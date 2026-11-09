@@ -148,6 +148,23 @@ validations.
                           delivered with Phase 3
                           (moved forward from
                           Phase 5/6)
+
+  DEC-031                 Updates are published   APPROVED
+                          as GitHub Releases of   (2026-11-09,
+                          the public repository;  BLK-021)
+                          the update signing key
+                          is a GitHub secret in a
+                          protected environment
+
+  DEC-032                 FreeAll never runs      APPROVED
+                          Windows' administrator  (2026-11-09,
+                          cleanup itself; it      BLK-022)
+                          opens Windows' own
+                          tools
+
+  DEC-033                 The Overview page is    APPROVED
+                          built for the first     (2026-11-09,
+                          release                 BLK-023)
   -----------------------------------------------------------------------
 
 ### Notes on DEC-022 to DEC-028
@@ -200,6 +217,26 @@ validations.
     scanner version is 2. On the development PC the cloud filter shows
     folders inside the OneDrive root as ordinary folders, so only the
     OneDrive root itself carries the tag.
+-   **DEC-031:** The product owner proposed GitHub Releases and a GitHub
+    secret and asked for a better suggestion if there was one. Nothing had
+    been published to GitHub Releases before (2026-11-09: no releases).
+    Kept, with these safeguards (TD-054): the key lives only in a GitHub
+    environment named `release` that requires a reviewer's approval and is
+    limited to `v*` tags; only the sign-and-publish job can read it, never
+    the build; actions are pinned to commit hashes; each signature is checked
+    against the public key built into the app before anything is published;
+    and the owner keeps an offline, password-protected copy of the key so it
+    can be restored or replaced. Keeping the key only offline and signing by
+    hand would be safer against a compromised GitHub account, but every
+    release and every refresh (at least every 90 days) would then need the
+    owner's machine. The manifest address is
+    `https://github.com/<owner>/<repo>/releases/latest/download/manifest.json`;
+    the public key is the repository variable `FREEALL_UPDATE_PUBLIC_KEY`.
+-   **DEC-032:** Confirms TD-048 and the recommendation in BLK-022. No helper
+    command is added for DISM component cleanup, hibernation or restore
+    points; Windows Storage keeps opening Windows' tools.
+-   **DEC-033:** Overview (F-006) was in the UI design (`07-ui-ux-design.md`
+    §5) but in no roadmap phase. Built 2026-11-09 (TD-053).
 -   **DEC-030:** The product owner asked for these items in this phase.
     The review queue is a list only: nothing on disk changes, and
     Recycle Bin, quarantine and revalidation stay in Phase 6. Changing
@@ -219,8 +256,8 @@ validations.
 These are not product-scope decisions unless otherwise noted: - ARM64
 native dependency and helper validation. - SQLite provider and native
 packaging selection (resolved for x64, TD-013). - Installer technology
-(resolved, TD-049) and signing pipeline (waits for a certificate,
-DEC-025). - WPF data-grid/tree control selection (resolved, TD-017). -
+(resolved, TD-049) and code-signing pipeline (waits for a certificate,
+DEC-025; update manifests are signed, TD-054). - WPF data-grid/tree control selection (resolved, TD-017). -
 Charting library and treemap rendering approach (resolved, TD-031). -
 Built-in WPF Fluent theme suitability and fallback styling. - Exact
 Windows cleanup APIs for each supported cleanup category (resolved for
@@ -1338,6 +1375,71 @@ Part of F-038 and BLK-006.
     included), and writes `SHA256SUMS.txt` and an SPDX 2.3 SBOM generated
     from the lock files (`tools/New-Sbom.ps1`) to `artifacts/release`. CI
     uploads that folder.
+
+### TD-053 --- Overview page (2026-11-09)
+
+Implements F-006 (DEC-033; `07-ui-ux-design.md` §5, `03-feature-catalogue.md`
+§A).
+
+-   **Read only, from what is stored.** The page reads drive figures from
+    Windows and everything else from FreeAll's database: latest scans,
+    category totals, the comparison of each drive's last two scans, the
+    latest duplicate analysis of each drive, the review queue, quarantine and
+    the cleanup record. Opening it never starts a scan or an analysis.
+    Application Residue, Temporary Files and Windows Storage are worked out
+    when their pages open, so the overview links to them instead of running
+    them.
+-   **Drive cards.** Windows' current free space; a bar that separates space
+    in scanned files from space Windows reports as used that the scan
+    couldn't attribute to files, from the scan's own figures; the scan's
+    state, age and size; drives that were scanned but aren't connected.
+-   **What needs attention, in sentences.** Less than 10 % free (Windows'
+    current figure), a partial or unfinished last scan, or a scan more than
+    30 days old, each naming the drive, in a banner and on the card. Status
+    marks always sit next to text that says the same thing.
+-   **Growth.** For each drive scanned at least twice, the newest two
+    finished scans are compared: folders (up to five levels deep) when both
+    still have detailed results, otherwise categories, with a note saying
+    why. Only increases are listed, and a folder is left out when one
+    listed subfolder holds at least 90 % of its growth, so the list names
+    where the space went rather than every parent.
+-   **No score.** Duplicates (confirmed byte for byte), the review queue (size
+    when scanned) and quarantine are shown separately, each with how it was
+    obtained, and the page says they overlap and aren't added together. No
+    "reclaimable" total, no health score, nothing preselected.
+-   The shell creates Overview while it is itself being built (it is the
+    first page), so the page gets the navigator lazily. Resolving it eagerly
+    hung startup in the first capture run.
+
+### TD-054 --- Release workflow and update publishing (2026-11-09)
+
+Implements DEC-031.
+
+-   `.github/workflows/release.yml`, started by pushing a tag `v<Version>`
+    that matches `Directory.Build.props`. The **build** job (read-only token,
+    no secrets) runs `build.ps1 -Configuration Release -Locked -Publish` with
+    the GitHub manifest address and the public key, and uploads
+    `artifacts/release`. The **publish** job runs in the `release`
+    environment (reviewer approval): it checks the files against
+    `SHA256SUMS.txt`, signs the manifest with the key passed as text (never
+    written to disk), checks the signature against the public key and the
+    setup file against the manifest (`tools/updates/Test-UpdateManifest.ps1`),
+    and creates the GitHub release with the setup file, SBOM, checksums,
+    `manifest.json` and `manifest.json.sig`. The release notes are the
+    version's section of `25-release-notes.md`.
+-   The sequence is the signing time in Unix seconds, so it always rises
+    across releases and refreshes without a stored counter.
+-   `.github/workflows/update-manifest-refresh.yml` re-signs the latest
+    release's manifest monthly (manifests expire after 90 days). It first
+    verifies the published manifest and checks the published setup file
+    against it, so a setup file swapped in the release is never signed.
+    Each run waits for the reviewer.
+-   Both workflows fail rather than publish when the public key variable or
+    the secrets are missing. The tag name reaches scripts only through
+    environment variables.
+-   Known edge: a check that runs at the moment a release is published can
+    fetch the new manifest with the old signature; the app then reports the
+    update information as invalid and checks again a week later.
 
 ## Decision change procedure
 

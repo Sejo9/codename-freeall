@@ -45,23 +45,3 @@ internal sealed class NavigationItem
 
     public PageViewModel Page => _page ??= _factory();
 }
-
-/// <summary>A page whose feature is not implemented yet. States plainly that it is unavailable.</summary>
-internal sealed class PlaceholderPageViewModel : PageViewModel
-{
-    public PlaceholderPageViewModel(string title, string subtitle, string glyph, string description)
-    {
-        Title = title;
-        Subtitle = subtitle;
-        Glyph = glyph;
-        Description = description;
-    }
-
-    public override string Title { get; }
-
-    public override string? Subtitle { get; }
-
-    public string Glyph { get; }
-
-    public string Description { get; }
-}

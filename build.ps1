@@ -102,7 +102,7 @@ if ($Publish) {
         Write-Host "==> Update checks: $UpdateManifestUrl" -ForegroundColor Cyan
     }
     else {
-        Write-Host '==> Update checks not configured: no manifest address and key (BLK-021).' -ForegroundColor Yellow
+        Write-Host '==> Update checks not configured: no manifest address and public key (docs/22-operations-runbook.md §7).' -ForegroundColor Yellow
     }
 
     Invoke-Step 'Publish FreeAll.Desktop (win-x64, self-contained)' {

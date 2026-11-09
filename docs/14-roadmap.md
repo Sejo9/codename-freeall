@@ -93,6 +93,17 @@ pass.
 
 **Exit:** release acceptance criteria satisfied.
 
+## After Phase 7 --- first release
+
+Phase 7 is the last build phase. The first release follows when the gates
+in `25-release-notes.md` close; most are reviews and manual tests by people
+(BLK-006, BLK-018, BLK-019, BLK-020, the compatibility matrix and the
+interactive installer run). Two approved items had no phase: Overview
+(F-006), built on 2026-11-09 (DEC-033), and elevated scanning (DEC-023),
+which waits for BLK-024. Not planned for v1: ARM64 (F-004, listed as
+unsupported), alternate data streams (BLK-008), and code signing until a
+certificate is available (DEC-025).
+
 ## Delivery governance
 
 -   Do not start a phase by silently assuming unresolved product

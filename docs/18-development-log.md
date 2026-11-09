@@ -911,3 +911,67 @@ are now people's tasks; the product-owner answers (BLK-021, BLK-023) decide
 the remaining build work. Recommended order: push to GitHub and get a green
 CI run; the independent security review; answer BLK-021 and BLK-023; the
 manual installer, helper and Narrator passes on a clean test PC.
+
+## 2026-11-09 --- Product-owner answers, Overview and the release workflow
+
+### Decisions
+
+-   BLK-021 → DEC-031: updates are GitHub Releases of the public repository;
+    the signing key is a GitHub secret. Nothing had been published to GitHub
+    Releases yet. Kept, with safeguards: a reviewer-gated `release`
+    environment limited to `v*` tags, a build job that never sees the key,
+    pinned actions, a signature check before publishing, and an offline
+    backup of the key.
+-   BLK-022 → DEC-032: FreeAll never runs Windows' administrator cleanup
+    itself.
+-   BLK-023 → DEC-033: Overview built for the first release.
+-   New question BLK-024: elevated scanning (DEC-023) is approved for v1 but
+    was never scheduled. Recommendation: release without it.
+
+### Delivered
+
+-   **Overview** (F-006, TD-053): drive cards with Windows' current free space
+    and a bar separating scanned files from space the scan couldn't
+    attribute; scan state, age and completeness; low space (under 10 %),
+    partial and old scans called out by name; storage by category across the
+    latest scans; growth between each drive's last two scans, naming the
+    folder where the space went rather than every parent; duplicates, review
+    queue and quarantine as separate estimates (no total, no score); recent
+    scans and cleanup. Read only; nothing is scanned or analysed by opening
+    it. The placeholder page is gone.
+-   **Release workflow** (TD-054): `release.yml` (tag → build without
+    secrets → reviewer approval → sign, check, publish to GitHub Releases)
+    and `update-manifest-refresh.yml` (monthly re-signing after checking
+    what is published). `tools/updates/Test-UpdateManifest.ps1`;
+    `New-UpdateManifest.ps1` takes the key as text. CI builds now use the
+    GitHub manifest address by default.
+-   Owner set-up steps in `22-operations-runbook.md` §7.
+
+### Defects found and fixed
+
+-   **Settings raised an error when opened** (since Phase 7): the download
+    progress bar bound two-way to a read-only property, which WPF rejects;
+    the app showed "Something went wrong". Found in the capture run's log,
+    not by its screenshots. Now one-way, and an architecture test checks
+    every progress bar.
+-   **Startup hung** with the first Overview build: the shell creates the
+    first page while it is being built, and the page asked for the shell as
+    its navigator. The navigator is now looked up when a link is used.
+
+### Verification
+
+-   The Phase 7 commit's CI run on GitHub passed (2026-11-09, run
+    42574393544).
+-   Captures with an empty data folder and with the C: scan (top, middle and
+    end of Overview, light and dark, 150 % text): accessibility audit "No
+    problems found"; no errors in the log.
+-   The release workflows haven't run on GitHub; they need the key, the
+    variable and the `release` environment first. The VS Code GitHub Actions
+    extension parses both and flags only those missing settings.
+
+### Next
+
+Owner: create the update key and the `release` environment
+(`22-operations-runbook.md` §7) and answer BLK-024. Then the release gates in
+`25-release-notes.md`: independent security review (BLK-020), manual
+installer, helper and Narrator passes, the other Windows 11 releases.

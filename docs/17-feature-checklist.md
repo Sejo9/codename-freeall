@@ -20,7 +20,8 @@ Use the exact status vocabulary defined in `15-ai-agent-rules.md`.
   F-005             WPF modern design system  IN PROGRESS       Theme and accessibility
                                                                 review
 
-  F-006             Dashboard                 NOT STARTED       UI acceptance
+  F-006             Dashboard (Overview)      IMPLEMENTED       Overview view-model tests,
+                                                                captures
 
   F-007             Drive discovery           IMPLEMENTED       Volume integration tests
 
@@ -520,6 +521,28 @@ protected data folder. Evidence: `FileLoggingTests`, `PathRedactorTests`,
 `DataDirectorySecurityTests`. Outstanding before COMPLETED:
 exception-message redaction (TD-014 known gap).
 
+### F-006 --- Dashboard (Overview) (IMPLEMENTED)
+
+Acceptance criteria (`07-ui-ux-design.md` §5, `03-feature-catalogue.md` §A):
+storage summary cards; drive usage visualizations; last scan and scan
+completeness; largest growth areas and review candidates; recent activity;
+reclaimable space only as an estimate with its method; total volume usage
+kept apart from indexed totals; no "one-click speed up" or cleanup score.
+
+Evidence (TD-053): `OverviewViewModelTests` (no scans: Windows' figures and
+how to start; the bar separates scanned files from unattributed space;
+partial, old and disconnected drives called out; low free space called out;
+categories combined and coloured by category; growth by folder, without
+repeating parents, and by category when detail is gone, with the reason;
+duplicates, queue and quarantine as separate estimates; an analysis from an
+earlier scan says so; activity merges scans and cleanup; links; a database
+failure is an error, not empty figures; drive discovery failing still shows
+scans; the page never writes). Captures in light and dark, empty and with a
+C: scan (top, middle and end of the page, and at 150 % text); accessibility
+audit: no problems.
+
+Before COMPLETED: Narrator and keyboard review (BLK-006).
+
 ### F-002 --- Per-user self-contained x64 package (IMPLEMENTED)
 
 Acceptance criteria (`13-deployment-release.md` §2): installs per user
@@ -615,8 +638,13 @@ scripts' key and manifest verify in the app), `Phase7ViewModelTests` (asked
 once, no check before an answer, weekly, never a download without asking,
 install needs a download and a confirmation). TD-050.
 
-Before release: BLK-021 (the address and the key). Until then release builds
-can't check, and say so.
+Publishing (DEC-031, TD-054): `.github/workflows/release.yml` builds, signs
+and publishes a GitHub release from a version tag;
+`update-manifest-refresh.yml` re-signs monthly. `UpdateToolingTests` also
+covers signing with the key's text and the release check refusing another
+key or a changed setup file. Before the first release the owner creates the
+key and the `release` environment (`22-operations-runbook.md` §7); the
+workflows have not run on GitHub yet.
 
 ### F-038 --- Accessibility and high DPI (IN PROGRESS)
 

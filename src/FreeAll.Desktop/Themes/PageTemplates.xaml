@@ -9,8 +9,8 @@
 
   <!-- Maps each page view model to its view. The shell's ContentControl picks the template by type. -->
 
-  <DataTemplate DataType="{x:Type vm:PlaceholderPageViewModel}">
-    <views:PlaceholderPage />
+  <DataTemplate DataType="{x:Type vm:OverviewViewModel}">
+    <views:OverviewPage />
   </DataTemplate>
 
   <DataTemplate DataType="{x:Type vm:DrivesViewModel}">
